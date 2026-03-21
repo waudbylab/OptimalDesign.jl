@@ -35,7 +35,7 @@ prob = DesignProblem(
         A₂=LogUniform(0.1, 10), R₂₂=Uniform(0.1, 100)),
     transformation=select(:R₂₁, :R₂₂),
     sigma=(θ, ξ) -> [σ_true, σ_true],
-    cost=(prev, ξ) -> ξ.t + 1,
+    cost=ξ -> ξ.t + 1,
 )
 
 candidates = [(t=t,) for t in range(0.001, 0.5, length=200)]

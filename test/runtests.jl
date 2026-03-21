@@ -45,7 +45,7 @@ const od_loglikelihood = OptimalDesign.loglikelihood
             sigma=(θ, ξ) -> 0.05,
             parameters=(A=Normal(1, 0.1), R₂=LogNormal(2, 0.5)),
             transformation=DeltaMethod(θ -> ComponentArray(R₂=θ.R₂)),
-            cost=(prev, ξ) -> ξ.t + 0.1,
+            cost=ξ -> ξ.t + 0.1,
         )
         @test prob2.jacobian !== nothing
     end
@@ -332,7 +332,7 @@ const od_loglikelihood = OptimalDesign.loglikelihood
             (θ, ξ) -> [θ.A * exp(-θ.R₂ * ξ.t), θ.A * exp(-θ.R₂ * ξ.t * 2)],
             parameters=(A=Normal(1, 0.1), R₂=LogNormal(2, 0.5)),
             sigma=(θ, ξ) -> [0.05, 0.05],
-            cost=(prev, ξ) -> 1.0,
+            cost=Returns(1.0),
         )
         candidates = [(t=t,) for t in range(0.01, 0.5, length=20)]
         prior = ParticlePosterior(prob, 100)
@@ -356,7 +356,7 @@ const od_loglikelihood = OptimalDesign.loglikelihood
             (θ, ξ) -> [θ.A * exp(-θ.R₂ * ξ.t), θ.A * exp(-θ.R₂ * ξ.t * 2)],
             parameters=(A=Normal(1, 0.1), R₂=LogNormal(2, 0.5)),
             sigma=(θ, ξ) -> [0.05, 0.05],
-            cost=(prev, ξ) -> ξ.t + 0.5,
+            cost=ξ -> ξ.t + 0.5,
         )
         candidates = [(t=t,) for t in range(0.01, 0.5, length=20)]
         prior = ParticlePosterior(prob, 100)
@@ -484,7 +484,7 @@ const od_loglikelihood = OptimalDesign.loglikelihood
             (θ, ξ) -> [θ.A * exp(-θ.R₂ * ξ.t), θ.A * exp(-θ.R₂ * ξ.t * 2)],
             parameters=(A=Normal(1, 0.1), R₂=LogNormal(2, 0.5)),
             sigma=(θ, ξ) -> [0.05, 0.05],
-            cost=(prev, ξ) -> 1.0,
+            cost=Returns(1.0),
         )
 
         θ_true = ComponentArray(A=1.0, R₂=10.0)

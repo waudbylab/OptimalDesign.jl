@@ -33,7 +33,7 @@ Compute the Fisher Information Matrix at (θ, ξ) for the given DesignProblem.
 
 Dispatches on whether an analytic Jacobian is provided or ForwardDiff is used.
 """
-function information(prob::DesignProblem, θ, ξ)
+function information(prob::AbstractDesignProblem, θ, ξ)
     J = if prob.jacobian === nothing
         # ForwardDiff: differentiate predict w.r.t. θ
         y = prob.predict(θ, ξ)
@@ -76,7 +76,7 @@ end
 In-place version: compute the FIM and write result into pre-allocated matrix M.
 Accepts an optional `GradientCache` to avoid allocating ForwardDiff config each call.
 """
-function information!(M::AbstractMatrix, prob::DesignProblem, θ, ξ;
+function information!(M::AbstractMatrix, prob::AbstractDesignProblem, θ, ξ;
                       cache::Union{Nothing, GradientCache}=nothing)
     p = size(M, 1)
 
@@ -146,7 +146,7 @@ Apply the transformation to the information matrix.
 - Identity: returns M unchanged.
 - DeltaMethod: computes [∇τ M⁻¹ ∇τ']⁻¹ via ForwardDiff.
 """
-function transform(prob::DesignProblem, M::AbstractMatrix, θ)
+function transform(prob::AbstractDesignProblem, M::AbstractMatrix, θ)
     transform(prob.transformation, M, θ)
 end
 

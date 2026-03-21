@@ -109,7 +109,7 @@ Run an adaptive experiment: select → acquire → update → display.
 Returns `(posterior=posterior, log=ExperimentLog)`.
 """
 function run_experiment(
-    prob::DesignProblem,
+    prob::AbstractDesignProblem,
     candidates::AbstractVector{<:NamedTuple},
     posterior::ParticlePosterior,
     acquire;
@@ -155,7 +155,7 @@ function run_experiment(
 
         for (ξ, count) in design
             for _ in 1:count
-                c = prob.cost(ξ_prev, ξ)
+                c = total_cost(prob, ξ_prev, ξ)
                 if spent + c > budget
                     @goto done
                 end

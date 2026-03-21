@@ -9,7 +9,7 @@ For vector-valued models, `component` selects which output to extract:
 - `component=k`: k-th element of the prediction vector
 """
 function posterior_predictions(
-    prob::DesignProblem,
+    prob::AbstractDesignProblem,
     posterior::ParticlePosterior,
     ξ_grid::AbstractVector;
     n_samples::Int=200,
@@ -44,7 +44,7 @@ Returns a `Vector` of matrices (one per output component), each of size
 `(n_samples, length(ξ_grid))`.
 """
 function posterior_predictions_vec(
-    prob::DesignProblem,
+    prob::AbstractDesignProblem,
     posterior::ParticlePosterior,
     ξ_grid::AbstractVector;
     n_samples::Int=200,
@@ -106,7 +106,7 @@ end
 Plot posterior credible bands with optional observation overlay.
 """
 function plot_credible_bands(
-    prob::DesignProblem,
+    prob::AbstractDesignProblem,
     posterior::ParticlePosterior,
     ξ_grid::AbstractVector;
     level::Real=0.9,

@@ -32,26 +32,42 @@ struct ECriterion <: DesignCriterion end
 
 # --- DesignProblem ---
 
-struct DesignProblem{F,J,S,T,C,K}
+abstract type AbstractDesignProblem end
+
+struct DesignProblem{F,J,S,T,C,K} <: AbstractDesignProblem
     predict::F
     jacobian::J
     sigma::S
     parameters::NamedTuple
     transformation::T
-    cost::C
+    cost::C              # ξ -> Real (per-measurement cost)
+    constraint::K
+end
+
+struct SwitchingDesignProblem{F,J,S,T,C,K} <: AbstractDesignProblem
+    predict::F
+    jacobian::J
+    sigma::S
+    parameters::NamedTuple
+    transformation::T
+    cost::C              # ξ -> Real (per-measurement cost)
+    switching_param::Symbol
+    switching_cost::Float64
     constraint::K
 end
 
 """
     DesignProblem(predict; kwargs...)
 
-Construct a DesignProblem with keyword arguments and sensible defaults.
+Construct a design problem. Returns `DesignProblem` or `SwitchingDesignProblem`
+depending on whether `switching_cost` is provided.
 
 - `jacobian`: (θ, ξ) -> J matrix, or `nothing` for ForwardDiff (default: `nothing`)
 - `sigma`: (θ, ξ) -> noise (default: `Returns(1.0)`)
 - `parameters`: NamedTuple of prior distributions (required)
 - `transformation`: defaults to `Identity()`
-- `cost`: (prev, ξ) -> time cost (default: `(prev, ξ) -> 1.0`)
+- `cost`: ξ -> Real, per-measurement cost (default: `Returns(1.0)`)
+- `switching_cost`: `nothing` or `(:param, value)` — fixed cost when switching `param` (default: `nothing`)
 - `constraint`: (ξ, θ) -> Bool (default: `(ξ, θ) -> true`)
 """
 function DesignProblem(
@@ -60,10 +76,32 @@ function DesignProblem(
     sigma = Returns(1.0),
     parameters::NamedTuple,
     transformation::Transformation = Identity(),
-    cost = (prev, ξ) -> 1.0,
+    cost = Returns(1.0),
+    switching_cost = nothing,
     constraint = (ξ, θ) -> true,
 )
-    DesignProblem(predict, jacobian, sigma, parameters, transformation, cost, constraint)
+    if switching_cost === nothing
+        DesignProblem(predict, jacobian, sigma, parameters, transformation, cost, constraint)
+    else
+        param, sc = switching_cost
+        SwitchingDesignProblem(predict, jacobian, sigma, parameters, transformation,
+            cost, param, Float64(sc), constraint)
+    end
+end
+
+"""
+    total_cost(prob, prev, ξ)
+
+Total cost of measuring at `ξ` after `prev`, including any switching penalty.
+"""
+total_cost(prob::DesignProblem, prev, ξ) = prob.cost(ξ)
+
+function total_cost(prob::SwitchingDesignProblem, prev, ξ)
+    c = prob.cost(ξ)
+    if prev !== nothing && getfield(prev, prob.switching_param) != getfield(ξ, prob.switching_param)
+        c += prob.switching_cost
+    end
+    c
 end
 
 # --- Parameter utilities ---

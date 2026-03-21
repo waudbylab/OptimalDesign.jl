@@ -11,7 +11,8 @@ using Statistics
 import CairoMakie
 import GLMakie
 
-export DesignProblem, Identity, DeltaMethod, select,
+export AbstractDesignProblem, DesignProblem, SwitchingDesignProblem,
+       Identity, DeltaMethod, select, total_cost,
        DCriterion, ACriterion, ECriterion,
        information, information!, transform, weighted_fim, weighted_fim!,
        expected_utility, score_candidates,

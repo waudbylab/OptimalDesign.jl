@@ -12,12 +12,13 @@ For A/E criteria, numerical differentiation is used.
 Returns a vector of derivatives (one per candidate).
 """
 function gateaux_derivative(
-    prob::DesignProblem,
+    prob::AbstractDesignProblem,
     candidates::AbstractVector{<:NamedTuple},
     particles::AbstractVector,
     weights::AbstractVector;
     criterion::DesignCriterion=DCriterion(),
     posterior_samples::Int=50,
+    costs::Union{Nothing,AbstractVector{<:Real}}=nothing,
 )
     K = length(candidates)
     n_particles = length(particles)
@@ -33,7 +34,7 @@ function gateaux_derivative(
         cache = GradientCache(θ, prob.predict, first(candidates))
 
         # Build weighted FIM in full parameter space
-        M_w = _particle_weighted_fim(prob, θ, candidates, weights; cache=cache)
+        M_w = _particle_weighted_fim(prob, θ, candidates, weights; cache=cache, costs=costs)
 
         C = cholesky(Symmetric(M_w); check=false)
         if !issuccess(C)
@@ -43,7 +44,7 @@ function gateaux_derivative(
         count += 1
 
         # Compute per-candidate Gateaux derivatives for this particle
-        gd .+= _gateaux_for_particle(criterion, prob, θ, M_w, candidates, cache)
+        gd .+= _gateaux_for_particle(criterion, prob, θ, M_w, candidates, cache; costs=costs)
     end
 
     count == 0 ? fill(-Inf, K) : gd ./ count
@@ -54,15 +55,17 @@ Build the weighted FIM for a single particle θ: M_w(θ) = Σ_k w_k M_k(θ).
 Returns a p×p matrix in the full parameter space (no transformation).
 """
 function _particle_weighted_fim(prob, θ, candidates, weights;
-                                cache::Union{Nothing, GradientCache}=nothing)
+                                cache::Union{Nothing, GradientCache}=nothing,
+                                costs::Union{Nothing,AbstractVector{<:Real}}=nothing)
     p = length(θ)
     M_w = zeros(p, p)
     M_k = zeros(p, p)
     for k in eachindex(candidates)
         if weights[k] > 1e-10
             information!(M_k, prob, θ, candidates[k]; cache=cache)
+            scale = costs === nothing ? weights[k] : weights[k] / costs[k]
             @inbounds for j in 1:p, i in 1:p
-                M_w[i, j] += weights[k] * M_k[i, j]
+                M_w[i, j] += scale * M_k[i, j]
             end
         end
     end
@@ -72,7 +75,8 @@ end
 # --- D-criterion: analytical Gateaux derivative ---
 
 function _gateaux_for_particle(::DCriterion, prob, θ, M_w, candidates,
-                               cache::Union{Nothing, GradientCache}=nothing)
+                               cache::Union{Nothing, GradientCache}=nothing;
+                               costs::Union{Nothing,AbstractVector{<:Real}}=nothing)
     p = size(M_w, 1)
     M_w_inv = inv(Symmetric(M_w))
 
@@ -91,7 +95,8 @@ function _gateaux_for_particle(::DCriterion, prob, θ, M_w, candidates,
         for j in 1:p, i in 1:p
             s += C[i, j] * M_k[j, i]
         end
-        result[k] = s
+        # Scale by 1/cost: moving weight to candidate k yields info at rate M_k/c_k
+        result[k] = costs === nothing ? s : s / costs[k]
     end
     result
 end
@@ -121,7 +126,8 @@ end
 # --- A-criterion and E-criterion: numerical Gateaux derivative ---
 
 function _gateaux_for_particle(criterion::DesignCriterion, prob, θ, M_w, candidates,
-                               cache::Union{Nothing, GradientCache}=nothing)
+                               cache::Union{Nothing, GradientCache}=nothing;
+                               costs::Union{Nothing,AbstractVector{<:Real}}=nothing)
     p = size(M_w, 1)
     Mt = transform(prob, M_w, θ)
     Φ0 = safe_criterion(criterion, Mt)
@@ -135,9 +141,11 @@ function _gateaux_for_particle(criterion::DesignCriterion, prob, θ, M_w, candid
 
     @inbounds for k in 1:K
         information!(M_k, prob, θ, candidates[k]; cache=cache)
-        # M_pert = M_w + ε * M_k (no allocation)
+        # Perturbation scaled by 1/cost when costs are provided
+        ε_k = costs === nothing ? ε : ε / costs[k]
+        # M_pert = M_w + ε_k * M_k (no allocation)
         for j in 1:p, i in 1:p
-            M_pert[i, j] = M_w[i, j] + ε * M_k[i, j]
+            M_pert[i, j] = M_w[i, j] + ε_k * M_k[i, j]
         end
         Mt_ε = transform(prob, M_pert, θ)
         Φ_ε = safe_criterion(criterion, Mt_ε)
@@ -174,16 +182,17 @@ with equality at support points.
 Returns `(is_optimal, max_derivative, dimension)`.
 """
 function verify_optimality(
-    prob::DesignProblem,
+    prob::AbstractDesignProblem,
     candidates::AbstractVector{<:NamedTuple},
     particles::AbstractVector,
     weights::AbstractVector;
     criterion::DesignCriterion=DCriterion(),
     posterior_samples::Int=50,
     tol::Float64=0.05,
+    costs::Union{Nothing,AbstractVector{<:Real}}=nothing,
 )
     gd = gateaux_derivative(prob, candidates, particles, weights;
-        criterion=criterion, posterior_samples=posterior_samples)
+        criterion=criterion, posterior_samples=posterior_samples, costs=costs)
 
     q = _transformed_dimension(prob)
     max_gd = maximum(gd)

@@ -10,7 +10,7 @@ Returns `(mean_residual, log_marginal)`:
 A running series of `log_marginal` values constitutes sequential Bayesian
 model checking. Sharp drops indicate observations surprising under the current model.
 """
-function observation_diagnostics(posterior::ParticlePosterior, prob::DesignProblem, ξ, y)
+function observation_diagnostics(posterior::ParticlePosterior, prob::AbstractDesignProblem, ξ, y)
     n = length(posterior.particles)
 
     # Log marginal likelihood: logsumexp of weighted log-likelihoods

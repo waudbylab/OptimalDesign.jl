@@ -35,11 +35,8 @@ prob = DesignProblem(
         A₂=Normal(1, 0.1), R₂₂=LogUniform(1, 50)),
     transformation=select(:R₂₁, :R₂₂),
     sigma=(θ, ξ) -> σ_true,
-    cost=(prev, ξ) -> begin
-        t_measure = ξ.t + 1
-        t_switch = (prev !== nothing && prev.i != ξ.i) ? 50.0 : 0.0
-        t_measure + t_switch
-    end,
+    cost=ξ -> ξ.t + 1,
+    switching_cost=(:i, 50.0),
 )
 
 candidates = [(i=i, t=t) for i in [1, 2] for t in range(0.001, 0.5, length=200)]

@@ -9,7 +9,7 @@ Efficiency > 1 means design_a is better; < 1 means design_b is better.
 function efficiency(
     weights_a::AbstractVector,
     weights_b::AbstractVector,
-    prob::DesignProblem,
+    prob::AbstractDesignProblem,
     candidates::AbstractVector{<:NamedTuple},
     particles::AbstractVector;
     criterion::DesignCriterion=DCriterion(),
@@ -90,5 +90,34 @@ function apportion(weights::AbstractVector{<:Real}, n::Int)
         end
     end
 
+    floored
+end
+
+"""
+    apportion(weights, budget, costs)
+
+Budget-aware apportionment: convert continuous budget-fraction weights to
+integer measurement counts given per-point costs.
+
+Point k gets `budget * weights[k] / costs[k]` ideal measurements.
+Uses largest-remainder rounding, checking that each additional measurement
+fits within the budget.
+"""
+function apportion(weights::AbstractVector{<:Real}, budget::Real,
+                   costs::AbstractVector{<:Real})
+    ideal = [weights[k] > 1e-10 ? budget * weights[k] / costs[k] : 0.0
+             for k in eachindex(weights)]
+    floored = floor.(Int, ideal)
+    remainders = ideal .- floored
+
+    # Distribute remaining budget to candidates with largest remainders
+    used = sum(floored[k] * costs[k] for k in eachindex(costs))
+    order = sortperm(remainders, rev=true)
+    for k in order
+        if remainders[k] > 0 && used + costs[k] <= budget + 1e-10
+            floored[k] += 1
+            used += costs[k]
+        end
+    end
     floored
 end

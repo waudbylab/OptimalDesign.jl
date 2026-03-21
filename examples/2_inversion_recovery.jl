@@ -45,7 +45,7 @@ prob = DesignProblem(
     parameters=(A=Normal(1, 0.5), B=Normal(2, 0.5), R₁=Uniform(0.1, 5)),
     transformation=select(:R₁),
     sigma=(θ, ξ) -> 0.05,
-    cost=(prev, ξ) -> 1.0,
+    cost=Returns(1.0),
 )
 
 # Candidate delay times: 0.01 to 5.0 seconds
@@ -82,7 +82,7 @@ prob_ad = DesignProblem(
     parameters=(A=Normal(1, 0.1), B=Normal(2, 0.1), R₁=LogUniform(0.1, 5)),
     transformation=select(:R₁),
     sigma=(θ, ξ) -> 0.05,
-    cost=(prev, ξ) -> 1.0,
+    cost=Returns(1.0),
 )
 
 θ_eval = ComponentArray(A=1.0, B=2.0, R₁=1.0)

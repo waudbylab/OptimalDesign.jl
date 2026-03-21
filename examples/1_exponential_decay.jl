@@ -34,7 +34,7 @@ prob = DesignProblem(
     parameters=(A=LogUniform(0.1, 10), R₂=Uniform(1, 50)),
     transformation=select(:R₂),
     sigma=(θ, ξ) -> 0.1,
-    cost=(prev, ξ) -> 1,
+    cost=Returns(1.0),
 )
 
 candidates = [(t=t,) for t in range(0.001, 0.5, length=200)]

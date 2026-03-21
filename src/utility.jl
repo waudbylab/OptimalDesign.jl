@@ -30,7 +30,7 @@ Compute the expected utility of design point ξ by Monte Carlo over posterior pa
 Uses mini-batch evaluation: randomly samples `posterior_samples` particles for an unbiased
 but lower-variance estimate.
 """
-function expected_utility(prob::DesignProblem, criterion::DesignCriterion, particles::AbstractVector, ξ; posterior_samples::Int=50)
+function expected_utility(prob::AbstractDesignProblem, criterion::DesignCriterion, particles::AbstractVector, ξ; posterior_samples::Int=50)
     n = length(particles)
     bs = min(posterior_samples, n)
     idx = randperm(n)[1:bs]
@@ -54,6 +54,6 @@ end
 
 Score all candidates by expected utility. Returns a vector of scores.
 """
-function score_candidates(prob::DesignProblem, criterion::DesignCriterion, particles::AbstractVector, candidates::AbstractVector; posterior_samples::Int=50)
+function score_candidates(prob::AbstractDesignProblem, criterion::DesignCriterion, particles::AbstractVector, candidates::AbstractVector; posterior_samples::Int=50)
     [expected_utility(prob, criterion, particles, ξ; posterior_samples=posterior_samples) for ξ in candidates]
 end

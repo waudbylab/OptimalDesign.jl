@@ -10,12 +10,12 @@ struct ParticlePosterior{T}
 end
 
 """
-    ParticlePosterior(prob::DesignProblem, n::Int)
+    ParticlePosterior(prob::AbstractDesignProblem, n::Int)
 
 Construct a ParticlePosterior by drawing n particles from the prior.
 All particles have equal weight.
 """
-function ParticlePosterior(prob::DesignProblem, n::Int)
+function ParticlePosterior(prob::AbstractDesignProblem, n::Int)
     particles = draw(prob.parameters, n)
     log_weights = fill(-log(n), n)
     ParticlePosterior(particles, log_weights)
@@ -54,13 +54,13 @@ function effective_sample_size(posterior::ParticlePosterior)
 end
 
 """
-    loglikelihood(prob::DesignProblem, θ, ξ, y)
+    loglikelihood(prob::AbstractDesignProblem, θ, ξ, y)
 
 Log-likelihood of observation y at (θ, ξ) under the noise model defined by prob.sigma.
 
 Handles scalar, vector, and structured observations (NamedTuple with :value and :σ).
 """
-function loglikelihood(prob::DesignProblem, θ, ξ, y)
+function loglikelihood(prob::AbstractDesignProblem, θ, ξ, y)
     ŷ = prob.predict(θ, ξ)
     # Structured observation: use realised noise
     if y isa NamedTuple && haskey(y, :value) && haskey(y, :σ)
@@ -95,19 +95,19 @@ function _loglikelihood_gaussian(y::AbstractVector, ŷ::Real, σ)
 end
 
 """
-    update!(posterior::ParticlePosterior, prob::DesignProblem, ξ, y; ess_threshold=0.5, a=0.95)
+    update!(posterior::ParticlePosterior, prob::AbstractDesignProblem, ξ, y; ess_threshold=0.5, a=0.95)
 
 Incorporate observation y at design point ξ. Delegates to the batch method
 with adaptive tempering, so even a single highly informative observation
 is tempered in gracefully.
 """
-function update!(posterior::ParticlePosterior, prob::DesignProblem, ξ, y;
+function update!(posterior::ParticlePosterior, prob::AbstractDesignProblem, ξ, y;
                  ess_threshold::Float64=0.5, a::Float64=0.95)
     update!(posterior, prob, [(ξ=ξ, y=y)]; ess_threshold=ess_threshold, a=a)
 end
 
 """
-    update!(posterior::ParticlePosterior, prob::DesignProblem, data::AbstractVector{<:NamedTuple};
+    update!(posterior::ParticlePosterior, prob::AbstractDesignProblem, data::AbstractVector{<:NamedTuple};
             ess_threshold=0.5, a=0.95)
 
 Batch update using adaptive likelihood tempering (SMC sampler).
@@ -119,7 +119,7 @@ step size Δβ is chosen by bisection so that the ESS stays just above
 
 Each element of `data` must have fields `ξ` (design point) and `y` (observation).
 """
-function update!(posterior::ParticlePosterior, prob::DesignProblem,
+function update!(posterior::ParticlePosterior, prob::AbstractDesignProblem,
                  data::AbstractVector{<:NamedTuple};
                  ess_threshold::Float64=0.5, a::Float64=0.95)
     n = length(posterior.particles)
@@ -158,7 +158,7 @@ function update!(posterior::ParticlePosterior, prob::DesignProblem,
 end
 
 """Compute total log-likelihood of all data for each particle."""
-function _compute_total_ll(posterior::ParticlePosterior, prob::DesignProblem,
+function _compute_total_ll(posterior::ParticlePosterior, prob::AbstractDesignProblem,
                            data::AbstractVector{<:NamedTuple})
     n = length(posterior.particles)
     total_ll = Vector{Float64}(undef, n)
