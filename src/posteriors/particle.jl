@@ -95,31 +95,121 @@ function _loglikelihood_gaussian(y::AbstractVector, ŷ::Real, σ)
 end
 
 """
-    update!(posterior::ParticlePosterior, prob::DesignProblem, ξ, y; ess_threshold=0.5, a=0.98)
+    update!(posterior::ParticlePosterior, prob::DesignProblem, ξ, y; ess_threshold=0.5, a=0.95)
 
-Incorporate observation y at design point ξ by reweighting particles.
-Triggers systematic resampling with Liu-West kernel jittering when ESS drops below threshold.
-
-The shrinkage parameter `a` (default 0.98) controls the Liu-West kernel:
-larger values mean less jitter, preserving particle locations more faithfully.
+Incorporate observation y at design point ξ. Delegates to the batch method
+with adaptive tempering, so even a single highly informative observation
+is tempered in gracefully.
 """
 function update!(posterior::ParticlePosterior, prob::DesignProblem, ξ, y;
-                 ess_threshold::Float64=0.5, a::Float64=0.98)
-    n = length(posterior.particles)
-    for i in 1:n
-        ll = loglikelihood(prob, posterior.particles[i], ξ, y)
-        posterior.log_weights[i] += ll
-    end
-    # Normalize
-    lse = logsumexp(posterior.log_weights)
-    posterior.log_weights .-= lse
+                 ess_threshold::Float64=0.5, a::Float64=0.95)
+    update!(posterior, prob, [(ξ=ξ, y=y)]; ess_threshold=ess_threshold, a=a)
+end
 
-    # Check ESS and resample if needed
-    ess = effective_sample_size(posterior)
-    if ess < ess_threshold * n
-        resample!(posterior; prob=prob, a=a)
+"""
+    update!(posterior::ParticlePosterior, prob::DesignProblem, data::AbstractVector{<:NamedTuple};
+            ess_threshold=0.5, a=0.95)
+
+Batch update using adaptive likelihood tempering (SMC sampler).
+
+Computes each particle's total log-likelihood across all data, then raises
+the tempering exponent β from 0 → 1 in adaptive steps. At each step, the
+step size Δβ is chosen by bisection so that the ESS stays just above
+`ess_threshold × n`, then particles are resampled with Liu-West jittering.
+
+Each element of `data` must have fields `ξ` (design point) and `y` (observation).
+"""
+function update!(posterior::ParticlePosterior, prob::DesignProblem,
+                 data::AbstractVector{<:NamedTuple};
+                 ess_threshold::Float64=0.5, a::Float64=0.95)
+    n = length(posterior.particles)
+    target_ess = ess_threshold * n
+
+    # Compute total log-likelihood for each particle
+    total_ll = _compute_total_ll(posterior, prob, data)
+
+    β = 0.0
+    step = 0
+    while β < 1.0
+        step += 1
+        remaining = 1.0 - β
+
+        # Find largest Δβ ∈ (0, remaining] keeping trial ESS ≥ target
+        Δβ = _bisect_Δβ(posterior.log_weights, total_ll, remaining, target_ess)
+
+        # Apply the step
+        for i in 1:n
+            posterior.log_weights[i] += Δβ * total_ll[i]
+        end
+        lse = logsumexp(posterior.log_weights)
+        posterior.log_weights .-= lse
+        β += Δβ
+
+        ess = effective_sample_size(posterior)
+        @debug "Tempering step $step: Δβ=$(round(Δβ; digits=4)), β=$(round(β; digits=4)), ESS=$(round(ess; digits=1))"
+
+        if ess < target_ess
+            resample!(posterior; prob=prob, a=a)
+            total_ll = _compute_total_ll(posterior, prob, data)
+        end
     end
+    @debug "Tempering complete in $step steps"
     posterior
+end
+
+"""Compute total log-likelihood of all data for each particle."""
+function _compute_total_ll(posterior::ParticlePosterior, prob::DesignProblem,
+                           data::AbstractVector{<:NamedTuple})
+    n = length(posterior.particles)
+    total_ll = Vector{Float64}(undef, n)
+    for i in 1:n
+        θ = posterior.particles[i]
+        ll = 0.0
+        for d in data
+            ll += loglikelihood(prob, θ, d.ξ, d.y)
+        end
+        total_ll[i] = ll
+    end
+    total_ll
+end
+
+"""
+Bisect for the largest Δβ ∈ (0, remaining] such that trial ESS ≥ target.
+If even Δβ = remaining keeps ESS above target, return remaining (finish in one step).
+"""
+function _bisect_Δβ(log_weights::Vector{Float64}, total_ll::Vector{Float64},
+                    remaining::Float64, target_ess::Float64;
+                    max_iter::Int=30, tol::Float64=1e-6)
+    # First check: can we take the full remaining step?
+    trial_ess = _trial_ess(log_weights, total_ll, remaining)
+    trial_ess >= target_ess && return remaining
+
+    # Bisect between lo (safe) and hi (too aggressive)
+    lo = 0.0
+    hi = remaining
+    for _ in 1:max_iter
+        mid = (lo + hi) / 2
+        (hi - lo) < tol && break
+        if _trial_ess(log_weights, total_ll, mid) >= target_ess
+            lo = mid
+        else
+            hi = mid
+        end
+    end
+    # Return lo (the safe side); but ensure we make some progress
+    max(lo, remaining * 1e-6)
+end
+
+"""Compute ESS that would result from adding Δβ * total_ll to log_weights, without modifying them."""
+function _trial_ess(log_weights::Vector{Float64}, total_ll::Vector{Float64}, Δβ::Float64)
+    n = length(log_weights)
+    trial = Vector{Float64}(undef, n)
+    for i in 1:n
+        trial[i] = log_weights[i] + Δβ * total_ll[i]
+    end
+    lse = logsumexp(trial)
+    trial .-= lse
+    exp(-logsumexp(2 .* trial))
 end
 
 """

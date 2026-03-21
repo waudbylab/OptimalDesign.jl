@@ -28,30 +28,46 @@ function select(
     ξ_prev=nothing,
     exchange_algorithm::Bool=n > 5,
     exchange_steps::Int=100,
+    prior_designs::AbstractVector=NamedTuple[],
 )
-    particles = _get_particles(posterior)
+    all_particles = _get_particles(posterior)
 
     if posterior_samples ≤ 0
-        posterior_samples = length(particles)
+        posterior_samples = length(all_particles)
     end
-    if posterior_samples > length(particles)
-        posterior_samples = length(particles)
+    if posterior_samples > length(all_particles)
+        posterior_samples = length(all_particles)
     end
+
+    # Draw a weighted subsample so uniform averaging in scoring is correct.
+    # For ParticlePosterior this resamples proportional to weights;
+    # for plain Vector it just returns the full set.
+    particles = _get_particles(posterior; n=posterior_samples)
 
     if exchange_algorithm
         _select_batch(problem, candidates, particles, n;
             criterion, posterior_samples, exchange_steps)
     else
         _select_greedy(problem, candidates, particles, n;
-            criterion, posterior_samples, budget, ξ_prev)
+            criterion, posterior_samples, budget, ξ_prev, prior_designs)
     end
 end
 
 """
 Extract particles from posterior (supports ParticlePosterior or plain Vector).
+When `resample=true`, draws from the posterior proportional to weights
+so that a uniform average over the returned particles is correct.
 """
-_get_particles(post::ParticlePosterior) = post.particles
-_get_particles(particles::AbstractVector) = particles
+function _get_particles(post::ParticlePosterior; n::Int=0)
+    if n > 0
+        # Weighted subsample: draw n particles proportional to weights
+        # so that uniform averaging in the scoring loop is correct
+        sample(post, n)
+    else
+        post.particles
+    end
+end
+_get_particles(particles::AbstractVector; n::Int=0) = particles
 
 """
 Greedy sequential selection: pick the best candidate, add its FIM to a
@@ -66,23 +82,21 @@ Precomputes all per-particle FIMs to avoid redundant ForwardDiff calls.
 function _select_greedy(
     prob, candidates, particles, n;
     criterion, posterior_samples, budget, ξ_prev,
+    prior_designs=NamedTuple[],
 )
     selected = NamedTuple[]
     remaining_budget = budget
     prev = ξ_prev
-    n_particles = length(particles)
-    bs = min(posterior_samples, n_particles)
-    idx = bs >= n_particles ? (1:n_particles) : randperm(n_particles)[1:bs]
+    np = length(particles)
     p = length(first(particles))
     K = length(candidates)
 
     # Precompute FIM for each (particle, candidate) pair — the expensive part
-    # M_cache[ji][k] = information(prob, particles[idx[ji]], candidates[k])
-    @debug "Precomputing FIM cache: $(length(idx)) particles × $K candidates"
-    M_cache = Vector{Vector{Matrix{Float64}}}(undef, length(idx))
+    @debug "Precomputing FIM cache: $np particles × $K candidates"
+    M_cache = Vector{Vector{Matrix{Float64}}}(undef, np)
     M_buf = zeros(p, p)
-    for ji in eachindex(idx)
-        θ = particles[idx[ji]]
+    for ji in 1:np
+        θ = particles[ji]
         cache = GradientCache(θ, prob.predict, first(candidates))
         M_cache[ji] = Vector{Matrix{Float64}}(undef, K)
         for k in 1:K
@@ -92,12 +106,41 @@ function _select_greedy(
     end
 
     # Running FIM per particle: accumulates information from already-selected points
-    M_running = [zeros(p, p) for _ in idx]
+    # Initialise with FIMs from previous observations so that the greedy scorer
+    # evaluates Φ(M_accumulated + M_new) — critical for n=1 adaptive steps where
+    # a single scalar observation gives a rank-deficient FIM.
+    M_running = [zeros(p, p) for _ in 1:np]
+    if !isempty(prior_designs)
+        for ji in 1:np
+            θ = particles[ji]
+            cache = GradientCache(θ, prob.predict, first(prior_designs))
+            for ξ_old in prior_designs
+                information!(M_buf, prob, θ, ξ_old; cache=cache)
+                M_running[ji] .+= M_buf
+            end
+        end
+        @debug "Initialised M_running from $(length(prior_designs)) prior designs"
+    end
 
     M_trial = zeros(p, p)
 
     for step in 1:n
-        # Score each candidate by E[Φ(M_running + M_k)] / cost
+        # Compute baseline E[Φ(M_running)] — the criterion without any new point.
+        # Scoring by marginal gain (score - baseline) / cost avoids the sign
+        # inversion that occurs when Φ is negative and cost divides the total.
+        baseline_total = 0.0
+        baseline_count = 0
+        for ji in 1:np
+            Mt = transform(prob, M_running[ji], particles[ji])
+            val = safe_criterion(criterion, Mt)
+            if isfinite(val)
+                baseline_total += val
+                baseline_count += 1
+            end
+        end
+        baseline = baseline_count == 0 ? -Inf : baseline_total / baseline_count
+
+        # Score each candidate by E[Φ(M_running + M_k) - Φ(M_running)] / cost
         scores = fill(-Inf, K)
         for k in 1:K
             c = prob.cost(prev, candidates[k])
@@ -107,12 +150,12 @@ function _select_greedy(
 
             total = 0.0
             count = 0
-            for (ji, j) in enumerate(idx)
+            for ji in 1:np
                 # M_trial = M_running[ji] + M_cache[ji][k] (no allocation)
                 @inbounds for col in 1:p, row in 1:p
                     M_trial[row, col] = M_running[ji][row, col] + M_cache[ji][k][row, col]
                 end
-                Mt = transform(prob, M_trial, particles[j])
+                Mt = transform(prob, M_trial, particles[ji])
                 val = safe_criterion(criterion, Mt)
                 if isfinite(val)
                     total += val
@@ -120,7 +163,27 @@ function _select_greedy(
                 end
             end
             score = count == 0 ? -Inf : total / count
-            scores[k] = score / max(c, eps())
+            gain = isfinite(baseline) ? score - baseline : score
+            scores[k] = gain / max(c, eps())
+        end
+
+        # Fallback: if all transform-based scores are -Inf (e.g., FIM still singular
+        # for DeltaMethod), score by tr(M) which works on rank-deficient matrices.
+        # This selects the most informative candidates until M_running reaches full rank.
+        if all(==(-Inf), scores)
+            @debug "All transform-based scores are -Inf; falling back to tr(FIM) scoring"
+            for k in 1:K
+                c = prob.cost(prev, candidates[k])
+                c > remaining_budget && continue
+                total = 0.0
+                for ji in 1:np
+                    @inbounds for col in 1:p, row in 1:p
+                        M_trial[row, col] = M_running[ji][row, col] + M_cache[ji][k][row, col]
+                    end
+                    total += tr(M_trial)
+                end
+                scores[k] = (total / np) / max(c, eps())
+            end
         end
 
         best_idx = argmax(scores)
@@ -134,7 +197,7 @@ function _select_greedy(
         prev = ξ
 
         # Update running FIM from cache (no recomputation)
-        for ji in eachindex(idx)
+        for ji in 1:np
             M_running[ji] .+= M_cache[ji][best_idx]
         end
 

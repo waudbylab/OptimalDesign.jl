@@ -26,7 +26,7 @@ export DesignProblem, Identity, DeltaMethod, select,
        design_points, observations, cumulative_cost, log_evidence_series,
        has_posterior_history, posterior_snapshots,
        # Phase 4
-       posterior_predictions, credible_band,
+       posterior_predictions, posterior_predictions_vec, credible_band,
        plot_credible_bands, plot_design_allocation,
        plot_gateaux, plot_residuals, plot_posterior_marginals, plot_corner,
        record_corner_animation

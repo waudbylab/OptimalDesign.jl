@@ -7,7 +7,7 @@ each entry includes a snapshot of the posterior (particles + log_weights) at tha
 """
 struct ExperimentLog
     history::Vector{NamedTuple}
-    prior_snapshot::Union{Nothing, NamedTuple}   # (particles, log_weights) before any data
+    prior_snapshot::Union{Nothing,NamedTuple}   # (particles, log_weights) before any data
 end
 
 ExperimentLog(; prior_snapshot=nothing) = ExperimentLog(NamedTuple[], prior_snapshot)
@@ -143,10 +143,13 @@ function run_experiment(
         step += 1
 
         # Select next design point(s)
+        # Pass prior_designs so greedy scorer evaluates marginal gain over
+        # accumulated information (essential when n_per_step < p for scalar obs)
         design = select(prob, candidates, posterior;
             n=n_per_step, criterion=criterion,
             posterior_samples=posterior_samples, ξ_prev=ξ_prev,
-            budget=budget - spent, exchange_algorithm=false)
+            budget=budget - spent, #exchange_algorithm=false,
+            prior_designs=design_points(log))
 
         isempty(design) && break
 
@@ -189,7 +192,7 @@ function run_experiment(
 
                 # Record
                 push!(log, (ξ=ξ, y=y, cost=c, diagnostics=diag, step=step,
-                            posterior_snapshot=snapshot))
+                    posterior_snapshot=snapshot))
 
                 # Log: per-step detail at @debug, periodic summaries at @info
                 y_str = y isa Real ? round(y; digits=4) : y

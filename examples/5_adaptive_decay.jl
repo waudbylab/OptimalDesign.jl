@@ -21,7 +21,7 @@ using Random
 using GLMakie
 
 ENV["JULIA_DEBUG"] = OptimalDesign
-Random.seed!(42)
+#Random.seed!(42)
 
 # ═══════════════════════════════════════════════
 # 1. Problem setup
@@ -30,15 +30,15 @@ Random.seed!(42)
 prob = DesignProblem(
     (θ, ξ) -> θ.A * exp(-θ.R₂ * ξ.t),
     parameters=(A=LogUniform(0.1, 10), R₂=Uniform(1, 50)),
-    # transformation=select(:R₂),
-    sigma=(θ, ξ) -> 0.05,
+    transformation=select(:R₂),
+    sigma=(θ, ξ) -> 0.2,
     cost=(prev, ξ) -> ξ.t + 1,
 )
 
 candidates = [(t=t,) for t in range(0.001, 0.5, length=200)]
 
 # Ground truth (unknown to algorithm)
-θ_true = ComponentArray(A=1.0, R₂=25.0)
+θ_true = ComponentArray(A=2, R₂=42.0)
 σ_true = 0.05
 
 # Simulated acquisition function (closure over ground truth)

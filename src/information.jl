@@ -155,7 +155,14 @@ function transform(::Identity, M::AbstractMatrix, θ)
 end
 
 function transform(dm::DeltaMethod, M::AbstractMatrix, θ)
+    # M may be singular (e.g. rank-deficient FIM from too few observations).
+    # Use cholesky to check before inverting; return a zero matrix on failure
+    # so that downstream safe_criterion correctly returns -Inf.
+    C = cholesky(Symmetric(M); check=false)
+    issuccess(C) || return zeros(eltype(M), size(M))
+    M_inv = inv(C)
     ∇τ = ForwardDiff.jacobian(dm.f, θ)
-    # [∇τ M⁻¹ ∇τ']⁻¹
-    inv(∇τ * inv(M) * ∇τ')
+    R = ∇τ * M_inv * ∇τ'
+    C2 = cholesky(Symmetric(R); check=false)
+    issuccess(C2) ? Matrix(inv(C2)) : zeros(eltype(M), size(R))
 end

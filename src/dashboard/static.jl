@@ -1,14 +1,19 @@
 """
-    posterior_predictions(prob, posterior, ξ_grid; n_samples=200)
+    posterior_predictions(prob, posterior, ξ_grid; n_samples=200, component=0)
 
 Generate posterior predictions over a grid of design points.
 Returns a matrix of size (n_samples, length(ξ_grid)).
+
+For vector-valued models, `component` selects which output to extract:
+- `component=0` (default): first element (backward compatible)
+- `component=k`: k-th element of the prediction vector
 """
 function posterior_predictions(
     prob::DesignProblem,
     posterior::ParticlePosterior,
     ξ_grid::AbstractVector;
     n_samples::Int=200,
+    component::Int=0,
 )
     particles = sample(posterior, n_samples)
     predictions = Matrix{Float64}(undef, n_samples, length(ξ_grid))
@@ -16,11 +21,56 @@ function posterior_predictions(
     for (j, ξ) in enumerate(ξ_grid)
         for i in 1:n_samples
             y = prob.predict(particles[i], ξ)
-            predictions[i, j] = y isa Real ? y : first(y)
+            if y isa Real
+                predictions[i, j] = y
+            elseif component > 0
+                predictions[i, j] = y[component]
+            else
+                predictions[i, j] = first(y)
+            end
         end
     end
 
     predictions
+end
+
+"""
+    posterior_predictions_vec(prob, posterior, ξ_grid; n_samples=200)
+
+Generate posterior predictions for vector-valued models, returning all components
+from a **single** particle sample for consistency.
+
+Returns a `Vector` of matrices (one per output component), each of size
+`(n_samples, length(ξ_grid))`.
+"""
+function posterior_predictions_vec(
+    prob::DesignProblem,
+    posterior::ParticlePosterior,
+    ξ_grid::AbstractVector;
+    n_samples::Int=200,
+)
+    particles = sample(posterior, n_samples)
+
+    # Determine number of outputs from first prediction
+    y0 = prob.predict(first(particles), first(ξ_grid))
+    n_out = y0 isa Real ? 1 : length(y0)
+
+    preds = [Matrix{Float64}(undef, n_samples, length(ξ_grid)) for _ in 1:n_out]
+
+    for (j, ξ) in enumerate(ξ_grid)
+        for i in 1:n_samples
+            y = prob.predict(particles[i], ξ)
+            if y isa Real
+                preds[1][i, j] = y
+            else
+                for c in 1:n_out
+                    preds[c][i, j] = y[c]
+                end
+            end
+        end
+    end
+
+    preds
 end
 
 """

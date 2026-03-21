@@ -42,7 +42,7 @@ end
 prob = DesignProblem(
     predict,
     jacobian=jac,
-    parameters=(A=Normal(1, 0.1), B=Normal(2, 0.1), R₁=LogUniform(0.1, 5)),
+    parameters=(A=Normal(1, 0.5), B=Normal(2, 0.5), R₁=Uniform(0.1, 5)),
     transformation=select(:R₁),
     sigma=(θ, ξ) -> 0.05,
     cost=(prev, ξ) -> 1.0,
@@ -53,7 +53,7 @@ candidates = [(τ=τ,) for τ in range(0.01, 5.0, length=200)]
 prior = ParticlePosterior(prob, 1000)
 
 # Ground truth (unknown to design algorithm)
-θ_true = ComponentArray(A=1.0, B=2.0, R₁=1.0)
+θ_true = ComponentArray(A=1.0, B=2.0, R₁=1.3)
 σ_true = 0.05
 T₁_true = 1.0 / θ_true.R₁   # = 1.0 s
 
