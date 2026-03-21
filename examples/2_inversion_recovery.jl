@@ -96,12 +96,12 @@ println("  FIM agreement: ", isapprox(M_analytic, M_ad, atol=1e-10), "\n")
 # ═══════════════════════════════════════════════
 
 println("Running exchange algorithm for batch design (n=20)...")
-design = select(prob, candidates, prior;
+d = design(prob, candidates, prior;
     n=20, criterion=DCriterion(), posterior_samples=1000, exchange_algorithm=true,
     exchange_steps=200)
 
 println("\nOptimal design allocation:")
-for (ξ, count) in design
+for (ξ, count) in d
     bar = repeat("█", count)
     τ_over_T1 = ξ.τ * θ_true.R₁   # τ/T₁ ratio (for known truth)
     println("  τ = $(round(ξ.τ; digits=4))  (τ/T₁≈$(round(τ_over_T1; digits=2)))  ×$(count)  $bar")
@@ -113,7 +113,7 @@ println("  (Known result: optimal delays cluster near τ/T₁ ≈ 1.2)")
 # ═══════════════════════════════════════════════
 
 w_opt = zeros(length(candidates))
-for (ξ, count) in design
+for (ξ, count) in d
     idx = findfirst(c -> c == ξ, candidates)
     idx !== nothing && (w_opt[idx] = count / 20)
 end
@@ -152,7 +152,7 @@ println("\n--- Simulated experiment (optimal design) ---")
 posterior_opt = ParticlePosterior(prob, 1000)
 obs_opt = NamedTuple[]
 
-for (ξ, count) in design
+for (ξ, count) in d
     for _ in 1:count
         y = prob.predict(θ_true, ξ) + σ_true * randn()
         OptimalDesign.update!(posterior_opt, prob, ξ, y)
@@ -232,7 +232,7 @@ lines!(ax2b, x_grid, band_opt.median, color=:blue, linewidth=2)
 lines!(ax2b, x_grid, y_true, color=:red, linewidth=1.5, linestyle=:dash)
 scatter!(ax2b, [o.ξ.τ for o in obs_opt], [o.y for o in obs_opt],
     color=:black, markersize=6, label="Observations")
-for (ξ, count) in design
+for (ξ, count) in d
     vlines!(ax2b, [ξ.τ], color=(:green, 0.3), linewidth=count * 2)
 end
 axislegend(ax2b)

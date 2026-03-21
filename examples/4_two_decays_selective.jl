@@ -77,20 +77,20 @@ println("\nCombined FIM rank: ", rank(M_combined))
 # ═══════════════════════════════════════════════
 
 println("\nCalculating batch design (n=$n_obs)...")
-design = select(prob, candidates, prior;
+d = design(prob, candidates, prior;
     n=n_obs,
     criterion=DCriterion(),
     exchange_steps=200)
 
 println("\nOptimal design allocation:")
-for (ξ, count) in design
+for (ξ, count) in d
     label = ξ.i == 1 ? "decay 1" : "decay 2"
     bar = repeat("█", count)
     println("  i=$(ξ.i) ($label), t=$(round(ξ.t; digits=4))  ×$(count)  $bar")
 end
 
-n_decay1 = sum(c for (ξ, c) in design if ξ.i == 1; init=0)
-n_decay2 = sum(c for (ξ, c) in design if ξ.i == 2; init=0)
+n_decay1 = sum(c for (ξ, c) in d if ξ.i == 1; init=0)
+n_decay2 = sum(c for (ξ, c) in d if ξ.i == 2; init=0)
 println("\n  Allocation: $n_decay1 on decay 1, $n_decay2 on decay 2")
 
 # ═══════════════════════════════════════════════
@@ -98,7 +98,7 @@ println("\n  Allocation: $n_decay1 on decay 1, $n_decay2 on decay 2")
 # ═══════════════════════════════════════════════
 
 w_opt = zeros(length(candidates))
-for (ξ, count) in design
+for (ξ, count) in d
     idx = findfirst(c -> c == ξ, candidates)
     idx !== nothing && (w_opt[idx] = count / n_obs)
 end
@@ -137,7 +137,7 @@ println("\n--- Simulated experiment (optimal design) ---")
 posterior_opt = ParticlePosterior(prob, 1000)
 obs_opt = NamedTuple[]
 
-for (ξ, count) in design
+for (ξ, count) in d
     for _ in 1:count
         y = prob.predict(θ_true, ξ) + σ_true * randn()
         push!(obs_opt, (ξ=ξ, y=y))
@@ -237,7 +237,7 @@ lines!(ax2a, x_grid, band_opt_1.median, color=:blue, linewidth=2)
 lines!(ax2a, x_grid, y_true_1, color=:red, linewidth=1.5, linestyle=:dash)
 scatter!(ax2a, [o.ξ.t for o in obs_1_opt], [o.y for o in obs_1_opt],
     color=:black, markersize=6, label="Observations")
-for (ξ, count) in design
+for (ξ, count) in d
     ξ.i == 1 && vlines!(ax2a, [ξ.t], color=(:green, 0.3), linewidth=count * 2)
 end
 axislegend(ax2a)
@@ -249,7 +249,7 @@ lines!(ax2b, x_grid, band_opt_2.median, color=:orange, linewidth=2)
 lines!(ax2b, x_grid, y_true_2, color=:red, linewidth=1.5, linestyle=:dash)
 scatter!(ax2b, [o.ξ.t for o in obs_2_opt], [o.y for o in obs_2_opt],
     color=:black, markersize=6)
-for (ξ, count) in design
+for (ξ, count) in d
     ξ.i == 2 && vlines!(ax2b, [ξ.t], color=(:green, 0.3), linewidth=count * 2)
 end
 

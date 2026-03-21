@@ -53,7 +53,7 @@ println()
 
 prior_adaptive = ParticlePosterior(prob, 1000)
 
-result = run_experiment(
+result = run_adaptive(
     prob, candidates, prior_adaptive, acquire;
     budget=budget,
     criterion=DCriterion(),
@@ -90,7 +90,7 @@ println("True values:    R₂₁=$(θ_true.R₂₁), R₂₂=$(θ_true.R₂₂)"
 println("\n--- Batch design comparison (n=$n_adaptive) ---")
 prior_batch = ParticlePosterior(prob, 1000)
 
-batch_design = select(prob, candidates, prior_batch;
+batch_design = design(prob, candidates, prior_batch;
     n=n_adaptive, criterion=DCriterion(), exchange_algorithm=true,
     exchange_steps=200)
 

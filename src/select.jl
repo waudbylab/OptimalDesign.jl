@@ -1,12 +1,13 @@
 """
-    select(problem, candidates, posterior; kwargs...)
+    design(problem, candidates, posterior; kwargs...)
 
-Unified interface for both batch and adaptive design.
+Compute an optimal experimental design: determine which design points to
+measure and how many times.
 
 Returns `Vector{Tuple{NamedTuple, Int}}` — (ξ, count) pairs.
 
-**Batch design** (`n` large, prior as posterior): optimises weights via exchange algorithm.
-**Adaptive design** (`n = 1` or small): scores by utility/cost, greedy multi-point selection.
+For large `n`, uses the exchange algorithm for weight optimisation.
+For small `n`, uses greedy marginal-gain selection.
 
 # Keyword arguments
 - `n = 1`: number of measurements to allocate
@@ -17,7 +18,7 @@ Returns `Vector{Tuple{NamedTuple, Int}}` — (ξ, count) pairs.
 - `exchange_algorithm = (n > 5)`: if true, use exchange algorithm for weight optimisation
 - `exchange_steps = 100`: iterations for exchange algorithm
 """
-function select(
+function design(
     problem::AbstractDesignProblem,
     candidates::AbstractVector{<:NamedTuple},
     posterior;
@@ -232,7 +233,7 @@ function _select_batch(
         costs=costs)
 
     # Apportion weights to n measurement slots.
-    # Budget enforcement is handled by the caller (run_experiment tracks per-obs cost).
+    # Budget enforcement is handled by the caller (run_adaptive tracks per-obs cost).
     counts = apportion(weights, n)
 
     result = Tuple{eltype(candidates),Int}[]
@@ -246,122 +247,61 @@ function _select_batch(
     _sequence_design(prob, result, ξ_prev)
 end
 
-# --- Switching cost helpers ---
+# --- Apportionment ---
 
-"""No switching overhead for plain DesignProblem."""
-_deduct_switching_overhead(::DesignProblem, weights, candidates, budget) = budget
+"""
+    apportion(weights, n)
 
-"""Estimate switching overhead and deduct from budget."""
-function _deduct_switching_overhead(prob::SwitchingDesignProblem, weights, candidates, budget)
-    support_idx = findall(weights .> 1e-10)
-    length(support_idx) <= 1 && return budget
+Convert continuous weights to integer counts summing to n.
 
-    # Count distinct groups of the switching parameter
-    support_points = candidates[support_idx]
-    param = prob.switching_param
-    groups = unique(getfield(ξ, param) for ξ in support_points)
-    n_switches = length(groups) - 1
+Uses the largest remainder method (Hamilton's method):
+1. Floor each weight * n
+2. Distribute remaining counts to candidates with largest fractional parts.
+"""
+function apportion(weights::AbstractVector{<:Real}, n::Int)
+    scaled = weights .* n
+    floored = floor.(Int, scaled)
+    remainders = scaled .- floored
+    deficit = n - sum(floored)
 
-    overhead = n_switches * prob.switching_cost
-    measurement_budget = max(budget - overhead, 0.0)
-    if overhead > 0
-        @debug "Switching overhead: $n_switches switches × $(prob.switching_cost) = $overhead, " *
-               "measurement budget: $(round(measurement_budget; digits=1))/$budget"
+    # Distribute deficit to candidates with largest remainders
+    if deficit > 0
+        order = sortperm(remainders, rev=true)
+        for i in 1:deficit
+            floored[order[i]] += 1
+        end
     end
-    measurement_budget
-end
 
-# --- Design sequencing ---
-
-"""No-op sequencing for plain DesignProblem."""
-_sequence_design(::DesignProblem, result, ξ_prev) = result
-
-"""Reorder (ξ, count) pairs to minimise total switching cost."""
-function _sequence_design(prob::SwitchingDesignProblem, result, ξ_prev)
-    length(result) <= 1 && return result
-
-    param = prob.switching_param
-    points = [r[1] for r in result]
-    counts = [r[2] for r in result]
-
-    best_order = _min_switching_order(prob, points, ξ_prev)
-    [(points[best_order[i]], counts[best_order[i]]) for i in eachindex(best_order)]
+    floored
 end
 
 """
-Find the permutation of support points that minimises total switching cost.
-Brute-force for n ≤ 8 (≤ 40320 perms), nearest-neighbour for larger.
+    apportion(weights, budget, costs)
+
+Budget-aware apportionment: convert continuous budget-fraction weights to
+integer measurement counts given per-point costs.
+
+Point k gets `budget * weights[k] / costs[k]` ideal measurements.
+Uses largest-remainder rounding, checking that each additional measurement
+fits within the budget.
 """
-function _min_switching_order(prob::SwitchingDesignProblem, points, ξ_prev)
-    n = length(points)
-    param = prob.switching_param
+function apportion(weights::AbstractVector{<:Real}, budget::Real,
+                   costs::AbstractVector{<:Real})
+    ideal = [weights[k] > 1e-10 ? budget * weights[k] / costs[k] : 0.0
+             for k in eachindex(weights)]
+    floored = floor.(Int, ideal)
+    remainders = ideal .- floored
 
-    if n <= 8
-        # Brute-force: try all permutations
-        best_cost = Inf
-        best_perm = collect(1:n)
-        _tsp_brute_force!(best_perm, Ref(best_cost), Int[], trues(n),
-                          prob, points, ξ_prev)
-        return best_perm
-    end
-
-    # Nearest-neighbour for larger support sets
-    visited = falses(n)
-    order = Int[]
-    prev_val = ξ_prev === nothing ? nothing : getfield(ξ_prev, param)
-
-    for _ in 1:n
-        best_k = 0
-        best_c = Inf
-        for k in 1:n
-            visited[k] && continue
-            sc = (prev_val !== nothing && getfield(points[k], param) != prev_val) ?
-                 prob.switching_cost : 0.0
-            c = prob.cost(points[k]) + sc
-            if c < best_c
-                best_c = c
-                best_k = k
-            end
+    # Distribute remaining budget to candidates with largest remainders
+    used = sum(floored[k] * costs[k] for k in eachindex(costs))
+    order = sortperm(remainders, rev=true)
+    for k in order
+        if remainders[k] > 0 && used + costs[k] <= budget + 1e-10
+            floored[k] += 1
+            used += costs[k]
         end
-        push!(order, best_k)
-        visited[best_k] = true
-        prev_val = getfield(points[best_k], param)
     end
-    order
-end
-
-"""Recursive brute-force TSP over support points."""
-function _tsp_brute_force!(best_perm, best_cost, current, available,
-                           prob, points, ξ_prev)
-    param = prob.switching_param
-    n = length(points)
-
-    if length(current) == n
-        # Compute total switching cost for this permutation
-        cost = 0.0
-        prev_val = ξ_prev === nothing ? nothing : getfield(ξ_prev, param)
-        for i in current
-            if prev_val !== nothing && getfield(points[i], param) != prev_val
-                cost += prob.switching_cost
-            end
-            prev_val = getfield(points[i], param)
-        end
-        if cost < best_cost[]
-            best_cost[] = cost
-            best_perm .= current
-        end
-        return
-    end
-
-    for k in 1:n
-        available[k] || continue
-        available[k] = false
-        push!(current, k)
-        _tsp_brute_force!(best_perm, best_cost, current, available,
-                          prob, points, ξ_prev)
-        pop!(current)
-        available[k] = true
-    end
+    floored
 end
 
 """
@@ -424,4 +364,52 @@ function uniform_allocation(candidates::AbstractVector{<:NamedTuple}, n::Int)
         i += c
     end
     result
+end
+
+# --- Batch experiment execution ---
+
+"""
+    run_batch(d, prob, posterior, acquire)
+
+Execute a pre-computed design: acquire observations and update the posterior.
+
+`d` is a design from `design()` — a `Vector{Tuple{NamedTuple, Int}}` of (ξ, count) pairs.
+`acquire` is a callable `ξ -> y` that returns an observation.
+
+Returns `(posterior=posterior, observations=[(ξ=..., y=...), ...])`.
+"""
+function run_batch(
+    d::AbstractVector,
+    prob::AbstractDesignProblem,
+    posterior::ParticlePosterior,
+    acquire;
+)
+    obs = NamedTuple[]
+    for (ξ, count) in d
+        for _ in 1:count
+            y = acquire(ξ)
+            push!(obs, (ξ=ξ, y=y))
+        end
+    end
+    update!(posterior, prob, obs)
+    (posterior=posterior, observations=obs)
+end
+
+"""
+    run_batch(prob, candidates, posterior, acquire; n=1, criterion=DCriterion(), kwargs...)
+
+Convenience: compute an optimal design and execute it in one call.
+Equivalent to `d = design(...); run_batch(d, prob, posterior, acquire)`.
+"""
+function run_batch(
+    prob::AbstractDesignProblem,
+    candidates::AbstractVector{<:NamedTuple},
+    posterior::ParticlePosterior,
+    acquire;
+    n::Int=1,
+    criterion::DesignCriterion=DCriterion(),
+    kwargs...,
+)
+    d = design(prob, candidates, posterior; n=n, criterion=criterion, kwargs...)
+    run_batch(d, prob, posterior, acquire)
 end

@@ -22,7 +22,7 @@ using Random
 using GLMakie
 
 ENV["JULIA_DEBUG"] = OptimalDesign
-# Random.seed!(42)
+Random.seed!(42)
 
 # ═══════════════════════════════════════════════════
 # 1. Problem setup
@@ -54,7 +54,7 @@ println("Goal:    Ds-optimal design for R₂\n")
 # ═══════════════════════════════════════════════════
 
 println("Calculating batch design (n=$n_obs)...")
-design = select(prob, candidates, prior;
+d = design(prob, candidates, prior;
     n=n_obs,
     criterion=DCriterion(),
     # posterior_samples=200,
@@ -62,7 +62,7 @@ design = select(prob, candidates, prior;
     exchange_steps=200)
 
 println("\nOptimal design allocation:")
-for (ξ, count) in design
+for (ξ, count) in d
     bar = repeat("█", count)
     println("  t = $(round(ξ.t; digits=4))  ×$(count)  $bar")
 end
@@ -73,7 +73,7 @@ end
 
 # Build weight vector from design
 w_opt = zeros(length(candidates))
-for (ξ, count) in design
+for (ξ, count) in d
     idx = findfirst(c -> c == ξ, candidates)
     idx !== nothing && (w_opt[idx] = count / n_obs)
 end
@@ -112,7 +112,7 @@ println("\n--- Simulated experiment (optimal design) ---")
 posterior_opt = ParticlePosterior(prob, 1000)
 obs_opt = NamedTuple[]
 
-for (ξ, count) in design
+for (ξ, count) in d
     for _ in 1:count
         y = prob.predict(θ_true, ξ) + σ_true * randn()
         OptimalDesign.update!(posterior_opt, prob, ξ, y)
@@ -194,7 +194,7 @@ scatter!(ax2b, [o.ξ.t for o in obs_opt], [o.y for o in obs_opt],
     color=:black, markersize=6, label="Observations")
 fig2
 # Mark design support points
-for (ξ, count) in design
+for (ξ, count) in d
     vlines!(ax2b, [ξ.t], color=(:green, 0.3), linewidth=count * 2)
 end
 axislegend(ax2b)

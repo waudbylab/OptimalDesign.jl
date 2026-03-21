@@ -11,45 +11,48 @@ using Statistics
 import CairoMakie
 import GLMakie
 
-export AbstractDesignProblem, DesignProblem, SwitchingDesignProblem,
-       Identity, DeltaMethod, select, total_cost,
-       DCriterion, ACriterion, ECriterion,
-       information, information!, transform, weighted_fim, weighted_fim!,
-       expected_utility, score_candidates,
-       ParticlePosterior, sample, posterior_mean,
-       effective_sample_size, update!, draw,
-       loglikelihood,
-       # Phase 2
-       exchange, apportion, efficiency, uniform_allocation,
-       gateaux_derivative, verify_optimality,
-       # Phase 3
-       ExperimentLog, run_experiment, observation_diagnostics,
-       design_points, observations, cumulative_cost, log_evidence_series,
-       has_posterior_history, posterior_snapshots,
-       # Phase 4
-       posterior_predictions, posterior_predictions_vec, credible_band,
-       plot_credible_bands, plot_design_allocation,
-       plot_gateaux, plot_residuals, plot_posterior_marginals, plot_corner,
-       record_corner_animation
+# Problem specification
+export DesignProblem, select,
+       DCriterion, ACriterion, ECriterion
 
-# Phase 1: Types and FIM
+# Posterior
+export ParticlePosterior
+
+# Design workflows
+export design, run_batch, run_adaptive
+
+# Inference and analysis
+export posterior_mean, effective_sample_size,
+       posterior_predictions, credible_band,
+       efficiency
+
+# Plotting
+export plot_corner, plot_residuals, record_corner_animation
+
+# Types and problem definition
 include("types.jl")
+include("problem.jl")
+include("sampling.jl")
 include("information.jl")
 include("utility.jl")
 include("posteriors/particle.jl")
+include("predictions.jl")
 
-# Phase 2: Solver
+# Design optimisation
 include("select.jl")
+include("sequencing.jl")
 include("exchange.jl")
 include("gateaux.jl")
 include("efficiency.jl")
 
-# Phase 3: Adaptive loop and diagnostics
-include("diagnostics.jl")
+# Experiment loop and logging
+include("log.jl")
 include("experiment.jl")
 
-# Phase 4: Dashboard
-include("dashboard/static.jl")
-include("dashboard/live.jl")
+# Plotting
+include("plotting/predictions.jl")
+include("plotting/design.jl")
+include("plotting/posterior.jl")
+include("plotting/dashboard.jl")
 
 end

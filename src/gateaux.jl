@@ -50,27 +50,6 @@ function gateaux_derivative(
     count == 0 ? fill(-Inf, K) : gd ./ count
 end
 
-"""
-Build the weighted FIM for a single particle θ: M_w(θ) = Σ_k w_k M_k(θ).
-Returns a p×p matrix in the full parameter space (no transformation).
-"""
-function _particle_weighted_fim(prob, θ, candidates, weights;
-                                cache::Union{Nothing, GradientCache}=nothing,
-                                costs::Union{Nothing,AbstractVector{<:Real}}=nothing)
-    p = length(θ)
-    M_w = zeros(p, p)
-    M_k = zeros(p, p)
-    for k in eachindex(candidates)
-        if weights[k] > 1e-10
-            information!(M_k, prob, θ, candidates[k]; cache=cache)
-            scale = costs === nothing ? weights[k] : weights[k] / costs[k]
-            @inbounds for j in 1:p, i in 1:p
-                M_w[i, j] += scale * M_k[i, j]
-            end
-        end
-    end
-    M_w
-end
 
 # --- D-criterion: analytical Gateaux derivative ---
 
@@ -152,22 +131,6 @@ function _gateaux_for_particle(criterion::DesignCriterion, prob, θ, M_w, candid
         result[k] = isfinite(Φ_ε) ? (Φ_ε - Φ0) / ε : -Inf
     end
     result
-end
-
-# --- Optimality dimension ---
-
-"""
-Dimension q of the parameter space of interest.
-For D-optimality, the GEQ bound is d(ξ) ≤ q at all candidates.
-"""
-function _transformed_dimension(prob)
-    if prob.transformation isa Identity
-        Float64(length(keys(prob.parameters)))
-    else
-        θ = draw(prob.parameters)
-        ∇τ = ForwardDiff.jacobian(prob.transformation.f, θ)
-        Float64(size(∇τ, 1))
-    end
 end
 
 # --- Optimality verification ---

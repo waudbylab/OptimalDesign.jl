@@ -52,13 +52,13 @@ println("Goal:    Ds-optimal design for (R₂₁, R₂₂)\n")
 # ═══════════════════════════════════════════════
 
 println("Calculating batch design (n=$n_obs)...")
-design = select(prob, candidates, prior;
+d = design(prob, candidates, prior;
     n=n_obs,
     criterion=DCriterion(),
     exchange_steps=200)
 
 println("\nOptimal design allocation:")
-for (ξ, count) in design
+for (ξ, count) in d
     bar = repeat("█", count)
     println("  t = $(round(ξ.t; digits=4))  ×$(count)  $bar")
 end
@@ -68,7 +68,7 @@ end
 # ═══════════════════════════════════════════════
 
 w_opt = zeros(length(candidates))
-for (ξ, count) in design
+for (ξ, count) in d
     idx = findfirst(c -> c == ξ, candidates)
     idx !== nothing && (w_opt[idx] = count / n_obs)
 end
@@ -107,7 +107,7 @@ println("\n--- Simulated experiment (optimal design) ---")
 posterior_opt = ParticlePosterior(prob, 1000)
 obs_opt = NamedTuple[]
 
-for (ξ, count) in design
+for (ξ, count) in d
     for _ in 1:count
         y = prob.predict(θ_true, ξ) .+ σ_true .* randn(2)
         push!(obs_opt, (ξ=ξ, y=y))
@@ -169,18 +169,21 @@ fig1
 
 # --- Figure 2: Credible bands — separate panels per component ---
 
-preds_prior_1 = posterior_predictions(prob, prior, prediction_grid; n_samples=200, component=1)
-preds_prior_2 = posterior_predictions(prob, prior, prediction_grid; n_samples=200, component=2)
+preds_prior = posterior_predictions(prob, prior, prediction_grid; n_samples=200)
+preds_prior_1 = preds_prior[1]
+preds_prior_2 = preds_prior[2]
 band_prior_1 = credible_band(preds_prior_1; level=0.9)
 band_prior_2 = credible_band(preds_prior_2; level=0.9)
 
-preds_opt_1 = posterior_predictions(prob, posterior_opt, prediction_grid; n_samples=200, component=1)
-preds_opt_2 = posterior_predictions(prob, posterior_opt, prediction_grid; n_samples=200, component=2)
+preds_opt = posterior_predictions(prob, posterior_opt, prediction_grid; n_samples=200)
+preds_opt_1 = preds_opt[1]
+preds_opt_2 = preds_opt[2]
 band_opt_1 = credible_band(preds_opt_1; level=0.9)
 band_opt_2 = credible_band(preds_opt_2; level=0.9)
 
-preds_unif_1 = posterior_predictions(prob, posterior_unif, prediction_grid; n_samples=200, component=1)
-preds_unif_2 = posterior_predictions(prob, posterior_unif, prediction_grid; n_samples=200, component=2)
+preds_unif = posterior_predictions(prob, posterior_unif, prediction_grid; n_samples=200)
+preds_unif_1 = preds_unif[1]
+preds_unif_2 = preds_unif[2]
 band_unif_1 = credible_band(preds_unif_1; level=0.9)
 band_unif_2 = credible_band(preds_unif_2; level=0.9)
 
@@ -219,7 +222,7 @@ band!(ax2c, x_grid, band_opt_1.lower, band_opt_1.upper, color=(:blue, 0.3))
 lines!(ax2c, x_grid, band_opt_1.median, color=:blue, linewidth=2)
 lines!(ax2c, x_grid, y_true_1, color=:red, linewidth=1.5, linestyle=:dash)
 scatter!(ax2c, obs_t_opt, obs_y1_opt, color=:black, markersize=4, label="Obs")
-for (ξ, count) in design
+for (ξ, count) in d
     vlines!(ax2c, [ξ.t], color=(:green, 0.3), linewidth=count * 2)
 end
 axislegend(ax2c)
@@ -230,7 +233,7 @@ band!(ax2d, x_grid, band_opt_2.lower, band_opt_2.upper, color=(:orange, 0.3))
 lines!(ax2d, x_grid, band_opt_2.median, color=:orange, linewidth=2)
 lines!(ax2d, x_grid, y_true_2, color=:red, linewidth=1.5, linestyle=:dash)
 scatter!(ax2d, obs_t_opt, obs_y2_opt, color=:black, markersize=4, label="Obs")
-for (ξ, count) in design
+for (ξ, count) in d
     vlines!(ax2d, [ξ.t], color=(:green, 0.3), linewidth=count * 2)
 end
 axislegend(ax2d)

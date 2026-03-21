@@ -5,7 +5,7 @@
 #
 # Demonstrates:
 #   1. Simulated acquisition function
-#   2. run_experiment for adaptive sequential design (headless)
+#   2. run_adaptive for adaptive sequential design (headless)
 #   3. Posterior convergence tracking
 #   4. Observation diagnostics (log marginal likelihood, residuals)
 #   5. Head-to-head: adaptive vs batch posterior precision
@@ -52,7 +52,7 @@ println("Design:  Adaptive sequential, Ds-optimal for R₂")
 println()
 
 # ═══════════════════════════════════════════════
-# 2. Run adaptive experiment via run_experiment
+# 2. Run adaptive experiment via run_adaptive
 # ═══════════════════════════════════════════════
 
 budget = 20.0
@@ -60,7 +60,7 @@ budget = 20.0
 println("Running adaptive experiment (budget=$budget)...")
 prior_adaptive = ParticlePosterior(prob, 1000)
 
-result = run_experiment(
+result = run_adaptive(
     prob, candidates, prior_adaptive, acquire;
     budget=budget,
     criterion=DCriterion(),
@@ -77,7 +77,7 @@ n_adaptive = length(log_adaptive)
 spent_adaptive = sum(e.cost for e in log_adaptive)
 μ_adaptive = posterior_mean(posterior_adaptive)
 
-# run_experiment already logged step-by-step; just print the summary
+# run_adaptive already logged step-by-step; just print the summary
 println("\nAdaptive results:")
 println("  Measurements: $n_adaptive")
 println("  Budget spent: $(round(spent_adaptive; digits=2)) / $budget")
@@ -90,7 +90,7 @@ println("  Posterior mean: A=$(round(μ_adaptive.A; digits=4)), R₂=$(round(μ_
 println("\n--- Batch design comparison (n=$n_adaptive) ---")
 prior_batch = ParticlePosterior(prob, 1000)
 
-batch_design = select(prob, candidates, prior_batch;
+batch_design = design(prob, candidates, prior_batch;
     n=n_adaptive, criterion=DCriterion(), exchange_algorithm=true,
     exchange_steps=200)
 

@@ -326,7 +326,7 @@ const od_loglikelihood = OptimalDesign.loglikelihood
         @test counts3 == [5, 0, 0]
     end
 
-    @testset "select — greedy" begin
+    @testset "design — greedy" begin
         # Vector observation for full-rank FIM
         prob = DesignProblem(
             (θ, ξ) -> [θ.A * exp(-θ.R₂ * ξ.t), θ.A * exp(-θ.R₂ * ξ.t * 2)],
@@ -338,7 +338,7 @@ const od_loglikelihood = OptimalDesign.loglikelihood
         prior = ParticlePosterior(prob, 100)
 
         # Select 3 points greedily
-        design = select(prob, candidates, prior;
+        design = design(prob, candidates, prior;
             n=3, criterion=DCriterion(), posterior_samples=50, exchange_algorithm=false)
 
         @test !isempty(design)
@@ -351,7 +351,7 @@ const od_loglikelihood = OptimalDesign.loglikelihood
         end
     end
 
-    @testset "select — greedy with budget" begin
+    @testset "design — greedy with budget" begin
         prob = DesignProblem(
             (θ, ξ) -> [θ.A * exp(-θ.R₂ * ξ.t), θ.A * exp(-θ.R₂ * ξ.t * 2)],
             parameters=(A=Normal(1, 0.1), R₂=LogNormal(2, 0.5)),
@@ -362,7 +362,7 @@ const od_loglikelihood = OptimalDesign.loglikelihood
         prior = ParticlePosterior(prob, 100)
 
         # Budget of 2.0 should limit selections
-        design = select(prob, candidates, prior;
+        design = design(prob, candidates, prior;
             n=100, criterion=DCriterion(), posterior_samples=50,
             budget=2.0, exchange_algorithm=false)
 
@@ -479,7 +479,7 @@ const od_loglikelihood = OptimalDesign.loglikelihood
         @test log_evidence_series(log) == [-3.0, -2.5]
     end
 
-    @testset "run_experiment — headless" begin
+    @testset "run_adaptive — headless" begin
         prob = DesignProblem(
             (θ, ξ) -> [θ.A * exp(-θ.R₂ * ξ.t), θ.A * exp(-θ.R₂ * ξ.t * 2)],
             parameters=(A=Normal(1, 0.1), R₂=LogNormal(2, 0.5)),
@@ -496,7 +496,7 @@ const od_loglikelihood = OptimalDesign.loglikelihood
         candidates = [(t=t,) for t in range(0.01, 0.5, length=20)]
         prior = ParticlePosterior(prob, 200)
 
-        result = run_experiment(
+        result = run_adaptive(
             prob, candidates, prior, acquire;
             budget=5.0,
             criterion=DCriterion(),
