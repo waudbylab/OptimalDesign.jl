@@ -72,18 +72,19 @@ depending on whether `switching_cost` is provided.
 """
 function DesignProblem(
     predict;
-    jacobian = nothing,
-    sigma = Returns(1.0),
+    jacobian=nothing,
+    sigma=Returns(1.0),
     parameters::NamedTuple,
-    transformation::Transformation = Identity(),
-    cost = Returns(1.0),
-    switching_cost = nothing,
-    constraint = (ξ, θ) -> true,
+    transformation::Transformation=Identity(),
+    cost=Returns(1.0),
+    switching_cost=nothing,
+    constraint=(ξ, θ) -> true,
 )
     if switching_cost === nothing
         DesignProblem(predict, jacobian, sigma, parameters, transformation, cost, constraint)
     else
         param, sc = switching_cost
+        @warn "Problems with switching costs are experimental and may not be fully supported."
         SwitchingDesignProblem(predict, jacobian, sigma, parameters, transformation,
             cost, param, Float64(sc), constraint)
     end
