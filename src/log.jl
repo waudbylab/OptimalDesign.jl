@@ -1,15 +1,3 @@
-"""
-    ExperimentLog
-
-Records the full experiment history for post-hoc analysis, trajectory replay,
-and reproducibility.  When `record_posterior=true` is passed to `run_adaptive`,
-each entry includes a snapshot of the posterior (particles + log_weights) at that step.
-"""
-struct ExperimentLog
-    history::Vector{NamedTuple}
-    prior_snapshot::Union{Nothing,NamedTuple}   # (particles, log_weights) before any data
-end
-
 ExperimentLog(; prior_snapshot=nothing) = ExperimentLog(NamedTuple[], prior_snapshot)
 
 Base.push!(log::ExperimentLog, entry::NamedTuple) = push!(log.history, entry)

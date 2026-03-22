@@ -499,8 +499,7 @@ const od_loglikelihood = OptimalDesign.loglikelihood
         result = run_adaptive(
             prob, candidates, prior, acquire;
             budget=5.0,
-            criterion=DCriterion(),
-            posterior_samples=50,
+                       posterior_samples=50,
             n_per_step=1,
             headless=true,
         )

@@ -28,6 +28,7 @@ depending on whether `switching_cost` is provided.
 - `sigma`: (θ, ξ) -> noise (default: `Returns(1.0)`)
 - `parameters`: NamedTuple of prior distributions (required)
 - `transformation`: defaults to `Identity()`
+- `criterion`: design criterion (default: `DCriterion()`)
 - `cost`: ξ -> Real, per-measurement cost (default: `Returns(1.0)`)
 - `switching_cost`: `nothing` or `(:param, value)` — fixed cost when switching `param` (default: `nothing`)
 - `constraint`: (ξ, θ) -> Bool (default: `(ξ, θ) -> true`)
@@ -38,17 +39,18 @@ function DesignProblem(
     sigma=Returns(1.0),
     parameters::NamedTuple,
     transformation::Transformation=Identity(),
+    criterion::DesignCriterion=DCriterion(),
     cost=Returns(1.0),
     switching_cost=nothing,
     constraint=(ξ, θ) -> true,
 )
     if switching_cost === nothing
-        DesignProblem(predict, jacobian, sigma, parameters, transformation, cost, constraint)
+        DesignProblem(predict, jacobian, sigma, parameters, transformation, criterion, cost, constraint)
     else
         param, sc = switching_cost
         @warn "Problems with switching costs are experimental and may not be fully supported."
         SwitchingDesignProblem(predict, jacobian, sigma, parameters, transformation,
-            cost, param, Float64(sc), constraint)
+            criterion, cost, param, Float64(sc), constraint)
     end
 end
 

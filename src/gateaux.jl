@@ -1,5 +1,5 @@
 """
-    gateaux_derivative(prob, candidates, particles, weights; kwargs...)
+    gateaux_derivative(prob, candidates, posterior, design; kwargs...)
 
 Compute the Gateaux derivative of the expected design criterion at each
 candidate, for a design with the given weights.
@@ -14,12 +14,23 @@ Returns a vector of derivatives (one per candidate).
 function gateaux_derivative(
     prob::AbstractDesignProblem,
     candidates::AbstractVector{<:NamedTuple},
+    posterior::ParticlePosterior,
+    d::ExperimentalDesign;
+    kwargs...,
+)
+    particles = _get_particles(posterior)
+    gateaux_derivative(prob, candidates, particles, weights(d, candidates); kwargs...)
+end
+
+function gateaux_derivative(
+    prob::AbstractDesignProblem,
+    candidates::AbstractVector{<:NamedTuple},
     particles::AbstractVector,
     weights::AbstractVector;
-    criterion::DesignCriterion=DCriterion(),
     posterior_samples::Int=50,
     costs::Union{Nothing,AbstractVector{<:Real}}=nothing,
 )
+    criterion = prob.criterion
     K = length(candidates)
     n_particles = length(particles)
     bs = min(posterior_samples, n_particles)
@@ -136,7 +147,7 @@ end
 # --- Optimality verification ---
 
 """
-    verify_optimality(prob, candidates, particles, weights; kwargs...)
+    verify_optimality(prob, candidates, posterior, design; kwargs...)
 
 Check the General Equivalence Theorem: at an optimal design, the
 Gateaux derivative should be ≤ q (dimension of interest) at all candidates,
@@ -147,15 +158,15 @@ Returns `(is_optimal, max_derivative, dimension)`.
 function verify_optimality(
     prob::AbstractDesignProblem,
     candidates::AbstractVector{<:NamedTuple},
-    particles::AbstractVector,
-    weights::AbstractVector;
-    criterion::DesignCriterion=DCriterion(),
+    posterior::ParticlePosterior,
+    d::ExperimentalDesign;
     posterior_samples::Int=50,
     tol::Float64=0.05,
     costs::Union{Nothing,AbstractVector{<:Real}}=nothing,
 )
-    gd = gateaux_derivative(prob, candidates, particles, weights;
-        criterion=criterion, posterior_samples=posterior_samples, costs=costs)
+    particles = _get_particles(posterior)
+    gd = gateaux_derivative(prob, candidates, particles, weights(d, candidates);
+        posterior_samples=posterior_samples, costs=costs)
 
     q = _transformed_dimension(prob)
     max_gd = maximum(gd)
@@ -163,26 +174,4 @@ function verify_optimality(
     (is_optimal=max_gd ≤ q + tol,
         max_derivative=max_gd,
         dimension=q)
-end
-
-# --- ExperimentalDesign convenience overloads ---
-
-function gateaux_derivative(
-    prob::AbstractDesignProblem,
-    candidates::AbstractVector{<:NamedTuple},
-    particles::AbstractVector,
-    d::ExperimentalDesign;
-    kwargs...,
-)
-    gateaux_derivative(prob, candidates, particles, weights(d, candidates); kwargs...)
-end
-
-function verify_optimality(
-    prob::AbstractDesignProblem,
-    candidates::AbstractVector{<:NamedTuple},
-    particles::AbstractVector,
-    d::ExperimentalDesign;
-    kwargs...,
-)
-    verify_optimality(prob, candidates, particles, weights(d, candidates); kwargs...)
 end

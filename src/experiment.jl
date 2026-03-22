@@ -22,7 +22,6 @@ the budget is exhausted.
 
 # Keyword arguments
 - `budget`: total cost budget (required)
-- `criterion = DCriterion()`: design criterion
 - `posterior_samples = 50`: mini-batch for utility evaluation
 - `n_per_step = 1`: measurements per adaptive step
 - `headless = false`: suppress GUI for testing
@@ -37,7 +36,6 @@ function run_adaptive(
     posterior::ParticlePosterior,
     acquire;
     budget::Real,
-    criterion::DesignCriterion=DCriterion(),
     posterior_samples::Int=50,
     n_per_step::Int=1,
     headless::Bool=false,
@@ -69,7 +67,7 @@ function run_adaptive(
         # Pass prior_designs so greedy scorer evaluates marginal gain over
         # accumulated information (essential when n_per_step < p for scalar obs)
         step_design = design(prob, candidates, posterior;
-            n=n_per_step, criterion=criterion,
+            n=n_per_step,
             posterior_samples=posterior_samples, ξ_prev=ξ_prev,
             budget=budget - spent, #exchange_algorithm=false,
             prior_designs=design_points(log))

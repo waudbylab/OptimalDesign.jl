@@ -80,41 +80,56 @@ function plot_credible_bands(
         [prob.predict(truth, ξ) for ξ in ξ_grid]
     end
 
-    fig = CairoMakie.Figure(size=(600, 300 * n_panels))
+    # Detect whether model is vector-valued
+    test_preds = posterior_predictions(prob, first(posteriors), ξ_grid; n_samples=2)
+    is_vector = test_preds isa AbstractVector{<:AbstractMatrix}
+    n_components = is_vector ? length(test_preds) : 1
+
+    fig = CairoMakie.Figure(size=(600 * n_components, 300 * n_panels))
 
     for (i, post) in enumerate(posteriors)
         preds = posterior_predictions(prob, post, ξ_grid; n_samples=n_samples)
-        band = credible_band(preds; level=level)
 
-        ylabel = i == n_panels ÷ 2 + 1 ? "Prediction" : ""
-        xlabel = i == n_panels ? string(x_field) : ""
-        ax = CairoMakie.Axis(fig[i, 1];
-            xlabel, ylabel,
-            title="$(ls[i]) ($(round(Int, level*100))% CI)")
+        for comp in 1:n_components
+            comp_preds = is_vector ? preds[comp] : preds
+            band = credible_band(comp_preds; level=level)
 
-        base_color = cs[i] isa Tuple ? cs[i] : (cs[i], 0.3)
-        line_color = cs[i] isa Tuple ? cs[i][1] : cs[i]
+            ylabel = comp == 1 ? "Prediction" : ""
+            xlabel = i == n_panels ? string(x_field) : ""
+            comp_label = n_components > 1 ? " [$(comp)]" : ""
+            ax = CairoMakie.Axis(fig[i, comp];
+                xlabel, ylabel,
+                title="$(ls[i])$comp_label ($(round(Int, level*100))% CI)")
 
-        CairoMakie.band!(ax, x_vals, band.lower, band.upper, color=base_color)
-        CairoMakie.lines!(ax, x_vals, band.median, color=line_color, linewidth=2)
+            base_color = cs[i] isa Tuple ? cs[i] : (cs[i], 0.3)
+            line_color = cs[i] isa Tuple ? cs[i][1] : cs[i]
 
-        if y_true !== nothing
-            CairoMakie.lines!(ax, x_vals, y_true, color=:red, linewidth=1.5,
-                linestyle=:dash, label="Truth")
-        end
+            CairoMakie.band!(ax, x_vals, band.lower, band.upper, color=base_color)
+            CairoMakie.lines!(ax, x_vals, band.median, color=line_color, linewidth=2)
 
-        # Observation overlay
-        obs = observations !== nothing && i <= length(observations) ? observations[i] : nothing
-        if obs !== nothing
-            obs_x = [getfield(o.ξ, x_field) for o in obs]
-            obs_y = [o.y isa NamedTuple ? o.y.value : o.y for o in obs]
-            CairoMakie.scatter!(ax, obs_x, obs_y, color=:black, markersize=5,
-                label="Observations")
-        end
+            if y_true !== nothing
+                yt = is_vector ? [y[comp] for y in y_true] : y_true
+                CairoMakie.lines!(ax, x_vals, yt, color=:red, linewidth=1.5,
+                    linestyle=:dash, label="Truth")
+            end
 
-        # Hide x decorations on non-bottom panels
-        if i < n_panels
-            CairoMakie.hidexdecorations!(ax; grid=false)
+            # Observation overlay — only on first component column for scalar obs
+            obs = observations !== nothing && i <= length(observations) ? observations[i] : nothing
+            if obs !== nothing
+                obs_x = [getfield(o.ξ, x_field) for o in obs]
+                if is_vector
+                    obs_y = [o.y[comp] for o in obs]
+                else
+                    obs_y = [o.y isa NamedTuple ? o.y.value : o.y for o in obs]
+                end
+                CairoMakie.scatter!(ax, obs_x, obs_y, color=:black, markersize=5,
+                    label="Observations")
+            end
+
+            # Hide x decorations on non-bottom panels
+            if i < n_panels
+                CairoMakie.hidexdecorations!(ax; grid=false)
+            end
         end
     end
 

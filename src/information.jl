@@ -51,17 +51,6 @@ function information(prob::AbstractDesignProblem, θ, ξ)
     weighted_fim(J, σ)
 end
 
-"""
-    GradientCache(p)
-
-Pre-allocated buffers for repeated `information!` calls.
-Avoids creating a new GradientConfig on every ForwardDiff.gradient! call.
-"""
-struct GradientCache
-    g_buf::Vector{Float64}
-    cfg::ForwardDiff.GradientConfig
-end
-
 function GradientCache(θ::AbstractVector, predict, ξ)
     p = length(θ)
     g_buf = zeros(p)

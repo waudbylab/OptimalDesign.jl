@@ -1,15 +1,4 @@
 """
-    ParticlePosterior{T}
-
-Weighted particle approximation to a posterior distribution.
-Particles are ComponentArrays, weights are in log-space.
-"""
-struct ParticlePosterior{T}
-    particles::Vector{T}
-    log_weights::Vector{Float64}
-end
-
-"""
     ParticlePosterior(prob::AbstractDesignProblem, n::Int)
 
 Construct a ParticlePosterior by drawing n particles from the prior.

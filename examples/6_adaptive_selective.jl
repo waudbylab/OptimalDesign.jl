@@ -56,7 +56,6 @@ prior_adaptive = ParticlePosterior(prob, 1000)
 result = run_adaptive(
     prob, candidates, prior_adaptive, acquire;
     budget=budget,
-    criterion=DCriterion(),
     n_per_step=1,
     headless=true,
     record_posterior=true,
@@ -91,30 +90,13 @@ println("\n--- Batch design comparison (n=$n_adaptive) ---")
 prior_batch = ParticlePosterior(prob, 1000)
 
 batch_design = design(prob, candidates, prior_batch;
-    n=n_adaptive, criterion=DCriterion(), exchange_algorithm=true,
-    exchange_steps=200)
+    n=n_adaptive, exchange_steps=200)
 
-println("Batch design allocation:")
-for (ξ, count) in batch_design
-    label = ξ.i == 1 ? "decay 1" : "decay 2"
-    bar = repeat("█", count)
-    println("  i=$(ξ.i) ($label), t=$(round(ξ.t; digits=4))  ×$(count)  $bar")
-end
-
-# Simulate the batch experiment
 posterior_batch = ParticlePosterior(prob, 1000)
-obs_batch = NamedTuple[]
+result_batch = run_batch(batch_design, prob, posterior_batch, acquire)
 
-for (ξ, count) in batch_design
-    for _ in 1:count
-        y = prob.predict(θ_true, ξ) + σ_true * randn()
-        OptimalDesign.update!(posterior_batch, prob, ξ, y)
-        push!(obs_batch, (ξ=ξ, y=y))
-    end
-end
-
-μ_batch = posterior_mean(posterior_batch)
-println("\nBatch results:")
+μ_batch = posterior_mean(result_batch.posterior)
+println("Batch results:")
 println("  Posterior mean: R₂₁=$(round(μ_batch.R₂₁; digits=2)), R₂₂=$(round(μ_batch.R₂₂; digits=2))")
 
 # ═══════════════════════════════════════════════
@@ -141,11 +123,9 @@ println("\nGenerating plots...")
 
 fig1 = Figure(size=(800, 700))
 
-# Top: which decay was measured and at what time
 ax1a = GLMakie.Axis(fig1[1, 1], ylabel="Design time t",
     title="Adaptive Design Trajectory")
 
-# Separate by decay
 steps_1 = [i for i in 1:n_adaptive if log_adaptive[i].ξ.i == 1]
 steps_2 = [i for i in 1:n_adaptive if log_adaptive[i].ξ.i == 2]
 times_1 = [log_adaptive[i].ξ.t for i in steps_1]
@@ -154,7 +134,6 @@ times_2 = [log_adaptive[i].ξ.t for i in steps_2]
 scatter!(ax1a, steps_1, times_1, color=:blue, markersize=8, label="Decay 1")
 scatter!(ax1a, steps_2, times_2, color=:orange, markersize=8, label="Decay 2")
 
-# Mark switches
 for i in 2:n_adaptive
     if log_adaptive[i].ξ.i != log_adaptive[i-1].ξ.i
         vlines!(ax1a, [i], color=(:red, 0.3), linewidth=1)
@@ -162,13 +141,12 @@ for i in 2:n_adaptive
 end
 axislegend(ax1a)
 
-# Middle: cumulative cost showing switching cost penalties
+# Cumulative cost
 ax1b = GLMakie.Axis(fig1[2, 1], ylabel="Cumulative cost",
     title="Budget Consumption ($n_switches switches)")
 costs = [e.cost for e in log_adaptive]
 cumcost = cumsum(costs)
 lines!(ax1b, 1:n_adaptive, cumcost, color=:black, linewidth=2)
-# Highlight switch steps
 for i in 2:n_adaptive
     if log_adaptive[i].ξ.i != log_adaptive[i-1].ξ.i
         scatter!(ax1b, [i], [cumcost[i]], color=:red, markersize=10, marker=:diamond)
@@ -176,7 +154,7 @@ for i in 2:n_adaptive
 end
 hlines!(ax1b, [budget], color=:gray, linestyle=:dash)
 
-# Bottom: log marginal likelihood
+# Log marginal likelihood
 ax1c = GLMakie.Axis(fig1[3, 1], xlabel="Step", ylabel="Log marginal likelihood",
     title="Sequential Model Checking")
 log_ml = OptimalDesign.log_evidence_series(log_adaptive)
@@ -184,9 +162,8 @@ lines!(ax1c, 1:n_adaptive, log_ml, color=:blue, linewidth=1.5)
 scatter!(ax1c, 1:n_adaptive, log_ml, color=:blue, markersize=5)
 
 fig1
-# save("ex6_adaptive_trajectory.pdf", fig1)
 
-# --- Figure 2: Adaptive vs batch posterior credible bands (per decay) ---
+# --- Figure 2: Adaptive vs batch credible bands (per decay) ---
 
 prediction_grid_1 = [(i=1, t=t) for t in range(0.001, 0.5, length=100)]
 prediction_grid_2 = [(i=2, t=t) for t in range(0.001, 0.5, length=100)]
@@ -201,19 +178,18 @@ ba1 = credible_band(pa1; level=0.9)
 ba2 = credible_band(pa2; level=0.9)
 
 # Batch posterior bands
-pb1 = posterior_predictions(prob, posterior_batch, prediction_grid_1; n_samples=200)
-pb2 = posterior_predictions(prob, posterior_batch, prediction_grid_2; n_samples=200)
+pb1 = posterior_predictions(prob, result_batch.posterior, prediction_grid_1; n_samples=200)
+pb2 = posterior_predictions(prob, result_batch.posterior, prediction_grid_2; n_samples=200)
 bb1 = credible_band(pb1; level=0.9)
 bb2 = credible_band(pb2; level=0.9)
 
 obs_adaptive_1 = [(ξ=e.ξ, y=e.y) for e in log_adaptive if e.ξ.i == 1]
 obs_adaptive_2 = [(ξ=e.ξ, y=e.y) for e in log_adaptive if e.ξ.i == 2]
-obs_batch_1 = [o for o in obs_batch if o.ξ.i == 1]
-obs_batch_2 = [o for o in obs_batch if o.ξ.i == 2]
+obs_batch_1 = [o for o in result_batch.observations if o.ξ.i == 1]
+obs_batch_2 = [o for o in result_batch.observations if o.ξ.i == 2]
 
 fig2 = Figure(size=(900, 600))
 
-# Adaptive
 ax2a = GLMakie.Axis(fig2[1, 1], ylabel="y",
     title="Adaptive — Decay 1 ($(length(obs_adaptive_1)) obs)")
 band!(ax2a, x_grid, ba1.lower, ba1.upper, color=(:blue, 0.3))
@@ -231,7 +207,6 @@ lines!(ax2b, x_grid, y_true_2, color=:red, linewidth=1.5, linestyle=:dash)
 scatter!(ax2b, [o.ξ.t for o in obs_adaptive_2], [o.y for o in obs_adaptive_2],
     color=:black, markersize=6)
 
-# Batch
 ax2c = GLMakie.Axis(fig2[2, 1], xlabel="t", ylabel="y",
     title="Batch — Decay 1 ($(length(obs_batch_1)) obs)")
 band!(ax2c, x_grid, bb1.lower, bb1.upper, color=(:blue, 0.3))
@@ -239,9 +214,6 @@ lines!(ax2c, x_grid, bb1.median, color=:blue, linewidth=2)
 lines!(ax2c, x_grid, y_true_1, color=:red, linewidth=1.5, linestyle=:dash)
 scatter!(ax2c, [o.ξ.t for o in obs_batch_1], [o.y for o in obs_batch_1],
     color=:black, markersize=6)
-for (ξ, count) in batch_design
-    ξ.i == 1 && vlines!(ax2c, [ξ.t], color=(:green, 0.3), linewidth=count * 2)
-end
 
 ax2d = GLMakie.Axis(fig2[2, 2], xlabel="t", ylabel="y",
     title="Batch — Decay 2 ($(length(obs_batch_2)) obs)")
@@ -250,19 +222,14 @@ lines!(ax2d, x_grid, bb2.median, color=:orange, linewidth=2)
 lines!(ax2d, x_grid, y_true_2, color=:red, linewidth=1.5, linestyle=:dash)
 scatter!(ax2d, [o.ξ.t for o in obs_batch_2], [o.y for o in obs_batch_2],
     color=:black, markersize=6)
-for (ξ, count) in batch_design
-    ξ.i == 2 && vlines!(ax2d, [ξ.t], color=(:green, 0.3), linewidth=count * 2)
-end
 
 fig2
-# save("ex6_adaptive_vs_batch.pdf", fig2)
 
 # --- Figure 3: Corner plot — adaptive vs batch posterior ---
 
-fig3 = plot_corner(posterior_adaptive, posterior_batch;
+fig3 = plot_corner(posterior_adaptive, result_batch.posterior;
     params=[:A₁, :R₂₁, :A₂, :R₂₂], labels=["Adaptive", "Batch"],
     truth=(A₁=θ_true.A₁, R₂₁=θ_true.R₂₁, A₂=θ_true.A₂, R₂₂=θ_true.R₂₂))
-# save("ex6_corner_adaptive_vs_batch.pdf", fig3)
 
 # --- Figure 4: Posterior evolution animation ---
 
@@ -307,6 +274,5 @@ hlines!(ax5b, [100], color=:gray, linestyle=:dash, label="Warning threshold")
 axislegend(ax5b)
 
 fig5
-# save("ex6_convergence.pdf", fig5)
 
-println("\nDone. Figures created — uncomment save() calls to export PDFs.")
+println("\nDone. Figures created.")

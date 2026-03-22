@@ -2,25 +2,6 @@
 # Panels: design points, posterior marginals, information gain per step,
 # budget tracker, pause/resume/stop controls.
 
-"""
-Dashboard state holding Observables and figure references.
-"""
-mutable struct LiveDashboard
-    fig::Any                    # GLMakie.Figure
-    screen::Any                 # GLMakie.Screen
-    obs_design_x::Any           # Observable: x coords of design points
-    obs_design_y::Any           # Observable: y coords (observations)
-    obs_posterior_vals::Any      # Observable: Dict of param name => values
-    obs_posterior_weights::Any   # Observable: weights
-    obs_info_gain::Any          # Observable: info gain per step
-    obs_budget_spent::Any        # Observable: budget spent
-    obs_budget_total::Any        # budget total (constant)
-    obs_pred_lower::Any          # Observable: credible band lower
-    obs_pred_median::Any         # Observable: credible band median
-    obs_pred_upper::Any          # Observable: credible band upper
-    control_state::Ref{Symbol}  # :running, :paused, :stopped
-end
-
 function _create_dashboard(prob, posterior, prediction_grid, budget)
     try
         fig = GLMakie.Figure(size=(1200, 800),

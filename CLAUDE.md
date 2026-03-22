@@ -16,3 +16,8 @@ To see debug output in example scripts or the REPL:
 ```julia
 ENV["JULIA_DEBUG"] = OptimalDesign
 ```
+
+## Code organisation
+
+- **All type definitions go in `types.jl`** — structs, abstract types, type aliases.
+  Other files contain methods, constructors, and logic only.

@@ -23,14 +23,13 @@ function safe_criterion(::ECriterion, M::AbstractMatrix)
 end
 
 """
-    expected_utility(prob, criterion, particles, ξ; posterior_samples=50)
+    expected_utility(prob, particles, ξ; posterior_samples=50)
 
 Compute the expected utility of design point ξ by Monte Carlo over posterior particles.
-
-Uses mini-batch evaluation: randomly samples `posterior_samples` particles for an unbiased
-but lower-variance estimate.
+Uses the criterion from `prob.criterion`.
 """
-function expected_utility(prob::AbstractDesignProblem, criterion::DesignCriterion, particles::AbstractVector, ξ; posterior_samples::Int=50)
+function expected_utility(prob::AbstractDesignProblem, particles::AbstractVector, ξ; posterior_samples::Int=50)
+    criterion = prob.criterion
     n = length(particles)
     bs = min(posterior_samples, n)
     idx = randperm(n)[1:bs]
@@ -50,10 +49,14 @@ function expected_utility(prob::AbstractDesignProblem, criterion::DesignCriterio
 end
 
 """
-    score_candidates(prob, criterion, particles, candidates; posterior_samples=50)
+    score_candidates(prob, posterior, candidates; posterior_samples=50)
 
 Score all candidates by expected utility. Returns a vector of scores.
 """
-function score_candidates(prob::AbstractDesignProblem, criterion::DesignCriterion, particles::AbstractVector, candidates::AbstractVector; posterior_samples::Int=50)
-    [expected_utility(prob, criterion, particles, ξ; posterior_samples=posterior_samples) for ξ in candidates]
+function score_candidates(prob::AbstractDesignProblem, posterior::ParticlePosterior, candidates::AbstractVector; posterior_samples::Int=50)
+    score_candidates(prob, posterior.particles, candidates; posterior_samples=posterior_samples)
+end
+
+function score_candidates(prob::AbstractDesignProblem, particles::AbstractVector, candidates::AbstractVector; posterior_samples::Int=50)
+    [expected_utility(prob, particles, ξ; posterior_samples=posterior_samples) for ξ in candidates]
 end

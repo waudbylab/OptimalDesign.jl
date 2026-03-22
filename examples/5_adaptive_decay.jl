@@ -5,7 +5,7 @@
 #
 # Demonstrates:
 #   1. Simulated acquisition function
-#   2. run_adaptive for adaptive sequential design (headless)
+#   2. run_adaptive for adaptive sequential design
 #   3. Posterior convergence tracking
 #   4. Observation diagnostics (log marginal likelihood, residuals)
 #   5. Head-to-head: adaptive vs batch posterior precision
@@ -20,8 +20,8 @@ using LinearAlgebra
 using Random
 using GLMakie
 
-ENV["JULIA_DEBUG"] = OptimalDesign
-#Random.seed!(42)
+# ENV["JULIA_DEBUG"] = OptimalDesign
+Random.seed!(42)
 
 # ═══════════════════════════════════════════════
 # 1. Problem setup
@@ -39,7 +39,9 @@ candidates = [(t=t,) for t in range(0.001, 0.5, length=200)]
 
 # Ground truth (unknown to algorithm)
 θ_true = ComponentArray(A=2, R₂=42.0)
-σ_true = 0.05
+σ_true = 0.1
+
+budget = 100.0
 
 # Simulated acquisition function (closure over ground truth)
 acquire = let θ = θ_true, σ = σ_true
@@ -52,10 +54,8 @@ println("Design:  Adaptive sequential, Ds-optimal for R₂")
 println()
 
 # ═══════════════════════════════════════════════
-# 2. Run adaptive experiment via run_adaptive
+# 2. Run adaptive experiment
 # ═══════════════════════════════════════════════
-
-budget = 20.0
 
 println("Running adaptive experiment (budget=$budget)...")
 prior_adaptive = ParticlePosterior(prob, 1000)
@@ -63,8 +63,6 @@ prior_adaptive = ParticlePosterior(prob, 1000)
 result = run_adaptive(
     prob, candidates, prior_adaptive, acquire;
     budget=budget,
-    criterion=DCriterion(),
-    # posterior_samples=200,
     n_per_step=1,
     headless=false,
     record_posterior=true,
@@ -77,43 +75,25 @@ n_adaptive = length(log_adaptive)
 spent_adaptive = sum(e.cost for e in log_adaptive)
 μ_adaptive = posterior_mean(posterior_adaptive)
 
-# run_adaptive already logged step-by-step; just print the summary
 println("\nAdaptive results:")
 println("  Measurements: $n_adaptive")
 println("  Budget spent: $(round(spent_adaptive; digits=2)) / $budget")
 println("  Posterior mean: A=$(round(μ_adaptive.A; digits=4)), R₂=$(round(μ_adaptive.R₂; digits=2))")
 
 # ═══════════════════════════════════════════════
-# 3. Batch design for comparison (same budget → same n)
+# 3. Batch design for comparison (same n)
 # ═══════════════════════════════════════════════
 
 println("\n--- Batch design comparison (n=$n_adaptive) ---")
 prior_batch = ParticlePosterior(prob, 1000)
 
-batch_design = design(prob, candidates, prior_batch;
-    n=n_adaptive, criterion=DCriterion(), exchange_algorithm=true,
-    exchange_steps=200)
+batch_design = design(prob, candidates, prior_batch; n=n_adaptive)
 
-println("Batch design allocation:")
-for (ξ, count) in batch_design
-    bar = repeat("█", count)
-    println("  t = $(round(ξ.t; digits=4))  ×$(count)  $bar")
-end
-
-# Simulate the batch experiment with the same truth
 posterior_batch = ParticlePosterior(prob, 1000)
-obs_batch = NamedTuple[]
+result_batch = run_batch(batch_design, prob, posterior_batch, acquire)
 
-for (ξ, count) in batch_design
-    for _ in 1:count
-        y = prob.predict(θ_true, ξ) + σ_true * randn()
-        OptimalDesign.update!(posterior_batch, prob, ξ, y)
-        push!(obs_batch, (ξ=ξ, y=y))
-    end
-end
-
-μ_batch = posterior_mean(posterior_batch)
-println("\nBatch results:")
+μ_batch = posterior_mean(result_batch.posterior)
+println("Batch results:")
 println("  Posterior mean: A=$(round(μ_batch.A; digits=4)), R₂=$(round(μ_batch.R₂; digits=2))")
 
 # ═══════════════════════════════════════════════
@@ -134,11 +114,8 @@ println("  (Both use $n_adaptive measurements)")
 
 println("\nGenerating plots...")
 prediction_grid = [(t=t,) for t in range(0.001, 0.5, length=100)]
-x_grid = [ξ.t for ξ in prediction_grid]
-y_true = [prob.predict(θ_true, ξ) for ξ in prediction_grid]
 
 # --- Figure 1: Adaptive design trajectory ---
-# Where did the adaptive algorithm choose to measure over time?
 
 fig1 = Figure(size=(700, 500))
 
@@ -156,59 +133,30 @@ lines!(ax1b, 1:n_adaptive, log_ml, color=:blue, linewidth=1.5)
 scatter!(ax1b, 1:n_adaptive, log_ml, color=:blue, markersize=5)
 
 fig1
-# save("ex5_adaptive_trajectory.pdf", fig1)
 
-# --- Figure 2: Adaptive vs Batch posterior credible bands ---
-
-preds_adaptive = posterior_predictions(prob, posterior_adaptive, prediction_grid; n_samples=200)
-band_adaptive = credible_band(preds_adaptive; level=0.9)
-
-preds_batch = posterior_predictions(prob, posterior_batch, prediction_grid; n_samples=200)
-band_batch = credible_band(preds_batch; level=0.9)
+# --- Figure 2: Adaptive vs Batch credible bands ---
 
 obs_adaptive = [(ξ=e.ξ, y=e.y) for e in log_adaptive]
 
-fig2 = Figure(size=(700, 500))
-
-ax2a = GLMakie.Axis(fig2[1, 1], ylabel="y",
-    title="Posterior — Adaptive ($n_adaptive measurements)")
-band!(ax2a, x_grid, band_adaptive.lower, band_adaptive.upper, color=(:blue, 0.3))
-lines!(ax2a, x_grid, band_adaptive.median, color=:blue, linewidth=2)
-lines!(ax2a, x_grid, y_true, color=:red, linewidth=1.5, linestyle=:dash)
-scatter!(ax2a, [o.ξ.t for o in obs_adaptive], [o.y for o in obs_adaptive],
-    color=:black, markersize=6, label="Observations")
-axislegend(ax2a)
-
-ax2b = GLMakie.Axis(fig2[2, 1], xlabel="t", ylabel="y",
-    title="Posterior — Batch ($n_adaptive measurements)")
-band!(ax2b, x_grid, band_batch.lower, band_batch.upper, color=(:orange, 0.3))
-lines!(ax2b, x_grid, band_batch.median, color=:orange, linewidth=2)
-lines!(ax2b, x_grid, y_true, color=:red, linewidth=1.5, linestyle=:dash)
-scatter!(ax2b, [o.ξ.t for o in obs_batch], [o.y for o in obs_batch],
-    color=:black, markersize=6)
-for (ξ, count) in batch_design
-    vlines!(ax2b, [ξ.t], color=(:green, 0.3), linewidth=count * 2)
-end
-
-fig2
-# save("ex5_adaptive_vs_batch.pdf", fig2)
+fig2 = OptimalDesign.plot_credible_bands(prob,
+    [prior_adaptive, result.posterior, result_batch.posterior],
+    prediction_grid;
+    labels=["Prior", "Adaptive ($n_adaptive obs)", "Batch ($n_adaptive obs)"],
+    truth=θ_true,
+    observations=[nothing, obs_adaptive, result_batch.observations])
 
 # --- Figure 3: Corner plot — adaptive vs batch posterior ---
 
-fig3 = plot_corner(posterior_adaptive, posterior_batch;
-    params=[:A, :R₂], labels=["Adaptive", "Batch"],
+fig3 = plot_corner(result_batch.posterior, result.posterior;
+    params=[:A, :R₂], labels=["Batch", "Adaptive"],
     truth=(A=θ_true.A, R₂=θ_true.R₂))
-# save("ex5_corner_adaptive_vs_batch.pdf", fig3)
 
 # --- Figure 4: Observation diagnostics from adaptive run ---
 
 fig4 = plot_residuals(log_adaptive)
-# save("ex5_diagnostics.pdf", fig4)
 
 # --- Figure 5: ESS evolution ---
 
-# Track how the effective sample size evolves
-# (We need to rerun the adaptive experiment tracking ESS at each step)
 println("\nRerunning adaptive experiment to track ESS evolution...")
 prior_ess = ParticlePosterior(prob, 1000)
 ess_history = Float64[]
@@ -235,7 +183,6 @@ hlines!(ax5b, [100], color=:gray, linestyle=:dash, label="Warning threshold")
 axislegend(ax5b)
 
 fig5
-# save("ex5_convergence.pdf", fig5)
 
 # --- Figure 6: Animated corner plot ---
 
@@ -247,4 +194,4 @@ if OptimalDesign.has_posterior_history(log_adaptive)
         framerate=5)
 end
 
-println("Done. Figures created — uncomment save() calls to export PDFs.")
+println("Done. Figures created.")

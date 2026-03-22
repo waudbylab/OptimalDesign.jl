@@ -336,7 +336,7 @@ function record_corner_animation(
     filename::String;
     params::Union{Nothing,Vector{Symbol}}=nothing,
     truth=nothing,
-    step_interval::Int=1,
+    step_interval::Int=(length(log) ÷ 25 + 1),  # aim for ~25 frames by default
     framerate::Int=5,
     bins::Int=30,
     prior_color=(:gray, 0.3),

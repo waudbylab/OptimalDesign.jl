@@ -1,5 +1,5 @@
 """
-    efficiency(weights_a, weights_b, prob, candidates, particles; kwargs...)
+    efficiency(d_a, d_b, prob, candidates, posterior; kwargs...)
 
 Relative efficiency of design_a vs design_b.
 
@@ -7,14 +7,27 @@ For D-optimality: (det M_a / det M_b)^(1/q) where q = dimension of interest.
 Efficiency > 1 means design_a is better; < 1 means design_b is better.
 """
 function efficiency(
+    d_a::ExperimentalDesign,
+    d_b::ExperimentalDesign,
+    prob::AbstractDesignProblem,
+    candidates::AbstractVector{<:NamedTuple},
+    posterior::ParticlePosterior;
+    posterior_samples::Int=50,
+)
+    particles = _get_particles(posterior)
+    efficiency(weights(d_a, candidates), weights(d_b, candidates),
+        prob, candidates, particles; posterior_samples=posterior_samples)
+end
+
+function efficiency(
     weights_a::AbstractVector,
     weights_b::AbstractVector,
     prob::AbstractDesignProblem,
     candidates::AbstractVector{<:NamedTuple},
     particles::AbstractVector;
-    criterion::DesignCriterion=DCriterion(),
     posterior_samples::Int=50,
 )
+    criterion = prob.criterion
     # Compute average criterion value for each design
     Φ_a = _average_criterion(prob, candidates, particles, weights_a;
         criterion=criterion, posterior_samples=posterior_samples)
@@ -65,18 +78,4 @@ end
 function _efficiency(::ECriterion, Φ_a, Φ_b, q)
     # Φ = λ_min, efficiency = Φ_a / Φ_b
     Φ_a / Φ_b
-end
-
-# --- ExperimentalDesign convenience overload ---
-
-function efficiency(
-    d_a::ExperimentalDesign,
-    d_b::ExperimentalDesign,
-    prob::AbstractDesignProblem,
-    candidates::AbstractVector{<:NamedTuple},
-    particles::AbstractVector;
-    kwargs...,
-)
-    efficiency(weights(d_a, candidates), weights(d_b, candidates),
-        prob, candidates, particles; kwargs...)
 end

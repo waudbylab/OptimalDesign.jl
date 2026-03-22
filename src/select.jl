@@ -4,14 +4,13 @@
 Compute an optimal experimental design: determine which design points to
 measure and how many times.
 
-Returns `Vector{Tuple{NamedTuple, Int}}` — (ξ, count) pairs.
+Returns an `ExperimentalDesign` with (ξ, count) pairs.
 
 For large `n`, uses the exchange algorithm for weight optimisation.
 For small `n`, uses greedy marginal-gain selection.
 
 # Keyword arguments
 - `n = 1`: number of measurements to allocate
-- `criterion = DCriterion()`: design criterion
 - `budget = Inf`: total cost budget
 - `posterior_samples = 0`: number of posterior samples for utility evaluation
 - `ξ_prev = nothing`: previous design point (for cost computation)
@@ -23,7 +22,6 @@ function design(
     candidates::AbstractVector{<:NamedTuple},
     posterior;
     n::Int=1,
-    criterion::DesignCriterion=DCriterion(),
     budget::Real=Inf,
     posterior_samples::Int=0,
     ξ_prev=nothing,
@@ -45,9 +43,11 @@ function design(
     # for plain Vector it just returns the full set.
     particles = _get_particles(posterior; n=posterior_samples)
 
+    criterion = problem.criterion
+
     if exchange_algorithm
         _select_batch(problem, candidates, particles, n;
-            criterion, posterior_samples, exchange_steps, budget, ξ_prev)
+            posterior_samples, exchange_steps, budget, ξ_prev)
     else
         _select_greedy(problem, candidates, particles, n;
             criterion, posterior_samples, budget, ξ_prev, prior_designs)
@@ -217,7 +217,7 @@ For `SwitchingDesignProblem`, the output is sequenced to minimise switching.
 """
 function _select_batch(
     prob, candidates, particles, n;
-    criterion, posterior_samples, exchange_steps,
+    posterior_samples, exchange_steps,
     budget=Inf, ξ_prev=nothing,
 )
     # Per-measurement costs (1-arg cost function)
@@ -227,7 +227,6 @@ function _select_batch(
 
     @info "Running exchange algorithm for batch design..."
     weights = exchange(prob, candidates, particles;
-        criterion=criterion,
         posterior_samples=posterior_samples,
         max_iter=exchange_steps,
         costs=costs)
@@ -396,7 +395,7 @@ function run_batch(
 end
 
 """
-    run_batch(prob, candidates, posterior, acquire; n=1, criterion=DCriterion(), kwargs...)
+    run_batch(prob, candidates, posterior, acquire; n=1, kwargs...)
 
 Convenience: compute an optimal design and execute it in one call.
 Equivalent to `d = design(...); run_batch(d, prob, posterior, acquire)`.
@@ -407,9 +406,8 @@ function run_batch(
     posterior::ParticlePosterior,
     acquire;
     n::Int=1,
-    criterion::DesignCriterion=DCriterion(),
     kwargs...,
 )
-    d = design(prob, candidates, posterior; n=n, criterion=criterion, kwargs...)
+    d = design(prob, candidates, posterior; n=n, kwargs...)
     run_batch(d, prob, posterior, acquire)
 end

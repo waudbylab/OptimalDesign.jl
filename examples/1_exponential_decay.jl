@@ -32,7 +32,6 @@ prob = DesignProblem(
     parameters=(A=LogUniform(0.1, 10), R₂=Uniform(1, 50)),
     transformation=select(:R₂),
     sigma=(θ, ξ) -> 0.1,
-    cost=Returns(1.0),
 )
 
 candidates = [(t=t,) for t in range(0.001, 0.5, length=200)]
@@ -57,19 +56,15 @@ println("Goal:    Ds-optimal design for R₂\n")
 # ═══════════════════════════════════════════════════
 
 println("Calculating batch design (n=$n_obs)...")
-d = design(prob, candidates, prior;
-    n=n_obs,
-    criterion=DCriterion(),
-    exchange_steps=200)
-
-display(d)   # pretty-printed allocation
+d = design(prob, candidates, prior; n=n_obs, exchange_steps=200)
+display(d)
 
 # ═══════════════════════════════════════════════════
 # 3. Optimality verification (Gateaux derivative)
 # ═══════════════════════════════════════════════════
 
-opt_check = OptimalDesign.verify_optimality(prob, candidates, prior.particles, d;
-    criterion=DCriterion(), posterior_samples=1000)
+opt_check = OptimalDesign.verify_optimality(prob, candidates, prior, d;
+    posterior_samples=1000)
 println("\nOptimality verification:")
 println("  Is optimal: $(opt_check.is_optimal)")
 println("  Max Gateaux derivative: $(round(opt_check.max_derivative; digits=3))")
@@ -81,8 +76,7 @@ println("  Bound (q): $(round(opt_check.dimension; digits=3))")
 
 u = OptimalDesign.uniform_allocation(candidates, n_obs)
 
-eff = efficiency(u, d, prob, candidates, prior.particles;
-    criterion=DCriterion(), posterior_samples=1000)
+eff = efficiency(u, d, prob, candidates, prior; posterior_samples=1000)
 println("\nD-efficiency of uniform vs optimal: $(round(eff; digits=3))")
 println("  Uniform needs ~$(round(1 / eff; digits=1))× more measurements to match")
 
@@ -112,8 +106,8 @@ prediction_grid = [(t=t,) for t in range(0.001, 0.5, length=100)]
 
 # --- Figure 1: Design allocation + Gateaux derivative ---
 
-gd = OptimalDesign.gateaux_derivative(prob, candidates, prior.particles, d;
-    criterion=DCriterion(), posterior_samples=1000)
+gd = OptimalDesign.gateaux_derivative(prob, candidates, prior, d;
+    posterior_samples=1000)
 w_opt = OptimalDesign.weights(d, candidates)
 
 fig1 = Figure(size=(700, 500))
