@@ -125,7 +125,7 @@ function run_adaptive(
                        "log_ml=$(round(diag.log_marginal; digits=2))$resample_flag"
 
                 if resampled
-                    @warn "ESS dropped below threshold, resampled at step $obs_count " *
+                    @info "ESS dropped below threshold, resampled at step $obs_count " *
                           "(ESS: $(round(ess_before; digits=0)) → $(round(ess_after; digits=0)))"
                 end
 
