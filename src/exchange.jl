@@ -20,6 +20,8 @@ function exchange(
     max_iter::Int=200,
     tol::Float64=1e-3,
     costs::Union{Nothing,AbstractVector{<:Real}}=nothing,
+    prior_designs::AbstractVector=NamedTuple[],
+    design_scale::Real=1.0,
 )
     K = length(candidates)
     q = _transformed_dimension(prob)
@@ -33,7 +35,36 @@ function exchange(
     end
     fixed_particles = particles[randperm(n_particles)[1:bs]]
 
-    @info "Exchange: K=$K candidates, q=$q, $bs fixed particles, max_iter=$max_iter"
+    # Precompute accumulated FIM from prior observations so the exchange
+    # algorithm optimises marginal information gain, not total from scratch.
+    M_prior = nothing
+    if !isempty(prior_designs)
+        p = length(first(fixed_particles))
+        M_prior = [zeros(p, p) for _ in 1:bs]
+        M_buf = zeros(p, p)
+        for ji in 1:bs
+            θ = fixed_particles[ji]
+            cache = GradientCache(θ, prob.predict, first(prior_designs))
+            for x_old in prior_designs
+                information!(M_buf, prob, θ, x_old; cache=cache)
+                M_prior[ji] .+= M_buf
+            end
+        end
+        # Scale M_prior so it's commensurate with M_w (weights summing to 1).
+        # M_w represents 1 "unit" (1 measurement or 1 unit of budget).
+        # M_prior represents the total FIM from all prior observations.
+        # Dividing by design_scale (= n or budget) puts them on the same scale.
+        if design_scale > 1
+            for ji in 1:bs
+                M_prior[ji] ./= design_scale
+            end
+        end
+        @debug "Exchange: initialised M_prior from $(length(prior_designs)) prior observations, " *
+               "scaled by 1/$(round(design_scale; digits=1))"
+    end
+
+    @info "Exchange: K=$K candidates, q=$q, $bs fixed particles, max_iter=$max_iter" *
+          (M_prior !== nothing ? ", $(length(prior_designs)) prior obs" : "")
 
     # Initialise with evenly-spread support
     weights = _initialise_weights(prob, candidates, fixed_particles, bs, q)
@@ -46,14 +77,14 @@ function exchange(
     phase1_iters = max_iter ÷ 2
     best_weights = copy(weights)
     best_gap = Inf
-    best_obj = _weighted_objective(prob, fixed_particles, candidates, weights; costs=costs)
+    best_obj = _weighted_objective(prob, fixed_particles, candidates, weights; costs=costs, M_prior=M_prior)
 
     # Adaptive smoothness estimate (like Kirstine's adaptive step)
     L = max(q, 1.0)
 
     for iter in 1:phase1_iters
         gd = gateaux_derivative(prob, candidates, fixed_particles, weights;
-            posterior_samples=bs, costs=costs)
+            posterior_samples=bs, costs=costs, M_prior=M_prior)
 
         if all(isinf, gd)
             weights = _initialise_weights(prob, candidates, fixed_particles,
@@ -71,13 +102,13 @@ function exchange(
         if fw_gap < best_gap
             best_gap = fw_gap
             best_weights .= weights
-            best_obj = _weighted_objective(prob, fixed_particles, candidates, weights; costs=costs)
+            best_obj = _weighted_objective(prob, fixed_particles, candidates, weights; costs=costs, M_prior=M_prior)
         end
 
         if iter <= 3 || iter % 10 == 0 || fw_gap < tol
             support_idx = findall(weights .> 1e-10)
             d_min_s = isempty(support_idx) ? NaN : minimum(gd[support_idx])
-            @debug "P1 iter $iter" fw_gap=round(fw_gap; digits=4) n_support d_min=round(d_min_s; digits=4) L=round(L; digits=2)
+            # @debug "P1 iter $iter" fw_gap=round(fw_gap; digits=4) n_support d_min=round(d_min_s; digits=4) L=round(L; digits=2)
         end
 
         if fw_gap < tol
@@ -105,16 +136,17 @@ function exchange(
             γ = max(γ, 1e-6)  # floor to avoid stalling
 
             # Compute CURRENT objective for comparison
-            obj_current = _weighted_objective(prob, fixed_particles, candidates, weights; costs=costs)
+            obj_current = _weighted_objective(prob, fixed_particles, candidates, weights; costs=costs, M_prior=M_prior)
 
             # Trial step
             w_trial = copy(weights)
             w_trial[k_min] -= γ
             w_trial[k_max] += γ
-            w_trial[w_trial .< 1e-10] .= 0.0
-            s = sum(w_trial); s > 0 && (w_trial ./= s)
+            w_trial[w_trial.<1e-10] .= 0.0
+            s = sum(w_trial)
+            s > 0 && (w_trial ./= s)
 
-            obj_trial = _weighted_objective(prob, fixed_particles, candidates, w_trial; costs=costs)
+            obj_trial = _weighted_objective(prob, fixed_particles, candidates, w_trial; costs=costs, M_prior=M_prior)
 
             # Backtracking: if objective didn't improve vs CURRENT, increase L and shrink step
             backtracks = 0
@@ -125,9 +157,10 @@ function exchange(
                 w_trial .= weights
                 w_trial[k_min] -= γ
                 w_trial[k_max] += γ
-                w_trial[w_trial .< 1e-10] .= 0.0
-                s = sum(w_trial); s > 0 && (w_trial ./= s)
-                obj_trial = _weighted_objective(prob, fixed_particles, candidates, w_trial; costs=costs)
+                w_trial[w_trial.<1e-10] .= 0.0
+                s = sum(w_trial)
+                s > 0 && (w_trial ./= s)
+                obj_trial = _weighted_objective(prob, fixed_particles, candidates, w_trial; costs=costs, M_prior=M_prior)
                 backtracks += 1
             end
 
@@ -135,32 +168,33 @@ function exchange(
                 # Accept step, gently reduce L for next iteration
                 weights .= w_trial
                 L *= 0.9
-                @debug "  P1 transfer" iter α=round(γ; digits=4) from=k_min to=k_max L=round(L; digits=2) backtracks
+                # @debug "  P1 transfer" iter α=round(γ; digits=4) from=k_min to=k_max L=round(L; digits=2) backtracks
             else
-                @debug "  P1 step rejected after $backtracks backtracks" iter L=round(L; digits=2)
+                # @debug "  P1 step rejected after $backtracks backtracks" iter L=round(L; digits=2)
             end
         end
 
         # Prune and renormalise
-        weights[weights .< 1e-10] .= 0.0
+        weights[weights.<1e-10] .= 0.0
         s = sum(weights)
         s > 0 && (weights ./= s)
     end
 
     # Restore best if we overshot
-    final_obj = _weighted_objective(prob, fixed_particles, candidates, weights; costs=costs)
+    final_obj = _weighted_objective(prob, fixed_particles, candidates, weights; costs=costs, M_prior=M_prior)
     if best_obj > final_obj + 1e-6
-        @debug "Restoring best Phase 1 weights" best_gap=round(best_gap; digits=4)
+        # @debug "Restoring best Phase 1 weights" best_gap=round(best_gap; digits=4)
         weights .= best_weights
     end
 
     # Merge nearby support points before Phase 2
     n_before = count(>(1e-10), weights)
     _merge_nearby!(weights, candidates)
-    weights[weights .< 1e-6] .= 0.0
-    s = sum(weights); s > 0 && (weights ./= s)
+    weights[weights.<1e-6] .= 0.0
+    s = sum(weights)
+    s > 0 && (weights ./= s)
     n_after = count(>(1e-10), weights)
-    n_before != n_after && @debug "Merge" before=n_before after=n_after
+    n_before != n_after && @debug "Merge" before = n_before after = n_after
 
     # ═══════════════════════════════════════════
     # Phase 2: Refine weights on fixed support
@@ -171,14 +205,14 @@ function exchange(
 
     if n_sup >= 2
         phase2_iters = max_iter - (max_iter ÷ 2)
-        best_obj2 = _weighted_objective(prob, fixed_particles, candidates, weights; costs=costs)
+        best_obj2 = _weighted_objective(prob, fixed_particles, candidates, weights; costs=costs, M_prior=M_prior)
         best_weights2 = copy(weights)
         best_gap2 = Inf
         L2 = max(q, 1.0)
 
         for iter in 1:phase2_iters
             gd = gateaux_derivative(prob, candidates, fixed_particles, weights;
-                posterior_samples=bs, costs=costs)
+                posterior_samples=bs, costs=costs, M_prior=M_prior)
 
             if all(isinf, gd)
                 @warn "Phase2 iter $iter: FIM singular"
@@ -191,12 +225,12 @@ function exchange(
             if fw_gap < best_gap2
                 best_gap2 = fw_gap
                 best_weights2 .= weights
-                best_obj2 = _weighted_objective(prob, fixed_particles, candidates, weights; costs=costs)
+                best_obj2 = _weighted_objective(prob, fixed_particles, candidates, weights; costs=costs, M_prior=M_prior)
             end
 
-            if iter == 1 || iter % 10 == 0 || fw_gap < tol
-                @debug "P2 iter $iter" fw_gap=round(fw_gap; digits=4) max_gd=round(d_max_all; digits=4) L=round(L2; digits=2)
-            end
+            # if iter == 1 || iter % 10 == 0 || fw_gap < tol
+            #     @debug "P2 iter $iter" fw_gap=round(fw_gap; digits=4) max_gd=round(d_max_all; digits=4) L=round(L2; digits=2)
+            # end
 
             if fw_gap < tol
                 @info "  Phase 2 converged at iter $iter (fw_gap=$(round(fw_gap; digits=5)))"
@@ -212,7 +246,7 @@ function exchange(
                 # Check if a non-support point is much better
                 k_max_global = argmax(gd)
                 if k_max_global in support_idx
-                    @debug "P2: support optimal, stopping"
+                    # @debug "P2: support optimal, stopping"
                     break
                 else
                     # Add non-support point
@@ -258,13 +292,14 @@ function exchange(
                 γ = max(γ, 1e-6)
 
                 # Trial step with backtracking against CURRENT objective
-                obj_current = _weighted_objective(prob, fixed_particles, candidates, weights; costs=costs)
+                obj_current = _weighted_objective(prob, fixed_particles, candidates, weights; costs=costs, M_prior=M_prior)
                 w_trial = copy(weights)
                 w_trial[k_min_sup] -= γ
                 w_trial[k_target] += γ
-                w_trial[w_trial .< 1e-10] .= 0.0
-                s = sum(w_trial); s > 0 && (w_trial ./= s)
-                obj_trial = _weighted_objective(prob, fixed_particles, candidates, w_trial; costs=costs)
+                w_trial[w_trial.<1e-10] .= 0.0
+                s = sum(w_trial)
+                s > 0 && (w_trial ./= s)
+                obj_trial = _weighted_objective(prob, fixed_particles, candidates, w_trial; costs=costs, M_prior=M_prior)
 
                 backtracks = 0
                 while obj_trial < obj_current - 1e-10 && backtracks < 4
@@ -274,9 +309,10 @@ function exchange(
                     w_trial .= weights
                     w_trial[k_min_sup] -= γ
                     w_trial[k_target] += γ
-                    w_trial[w_trial .< 1e-10] .= 0.0
-                    s = sum(w_trial); s > 0 && (w_trial ./= s)
-                    obj_trial = _weighted_objective(prob, fixed_particles, candidates, w_trial; costs=costs)
+                    w_trial[w_trial.<1e-10] .= 0.0
+                    s = sum(w_trial)
+                    s > 0 && (w_trial ./= s)
+                    obj_trial = _weighted_objective(prob, fixed_particles, candidates, w_trial; costs=costs, M_prior=M_prior)
                     backtracks += 1
                 end
 
@@ -290,39 +326,42 @@ function exchange(
                 end
             end
 
-            weights[weights .< 1e-10] .= 0.0
+            weights[weights.<1e-10] .= 0.0
             s = sum(weights)
             s > 0 && (weights ./= s)
         end
 
         # Restore best Phase 2 weights if we overshot
-        final_obj2 = _weighted_objective(prob, fixed_particles, candidates, weights; costs=costs)
+        final_obj2 = _weighted_objective(prob, fixed_particles, candidates, weights; costs=costs, M_prior=M_prior)
         if best_obj2 > final_obj2 + 1e-6
             weights .= best_weights2
         end
     end
 
     # Final cleanup
-    weights[weights .< 1e-6] .= 0.0
+    weights[weights.<1e-6] .= 0.0
     s = sum(weights)
     s > 0 && (weights ./= s)
 
     n_final = count(>(1e-10), weights)
     final_gap = _compute_fw_gap(prob, candidates, fixed_particles, weights;
-        posterior_samples=bs, costs=costs)
+        posterior_samples=bs, costs=costs, M_prior=M_prior)
     @info "  Exchange complete: $n_final support points, fw_gap=$(round(final_gap; digits=4))"
 
     weights
 end
 
-"""Compute the weighted objective: E_θ[Φ(Σ_k (w_k/c_k) M_k(θ))]."""
+"""Compute the weighted objective: E_θ[Φ(M_prior(θ) + Σ_k (w_k/c_k) M_k(θ))]."""
 function _weighted_objective(prob, particles, candidates, weights;
-                             costs=nothing)
+    costs=nothing, M_prior=nothing)
     criterion = prob.criterion
     total = 0.0
     count = 0
-    for θ in particles
+    for (ji, θ) in enumerate(particles)
         M_w = _particle_weighted_fim(prob, θ, candidates, weights; costs=costs)
+        if M_prior !== nothing
+            M_w .+= M_prior[ji]
+        end
         Mt = transform(prob, M_w, θ)
         val = safe_criterion(criterion, Mt)
         if isfinite(val)
@@ -335,9 +374,9 @@ end
 
 """Compute FW gap without side effects."""
 function _compute_fw_gap(prob, candidates, particles, weights;
-    posterior_samples=50, costs=nothing)
+    posterior_samples=50, costs=nothing, M_prior=nothing)
     gd = gateaux_derivative(prob, candidates, particles, weights;
-        posterior_samples=posterior_samples, costs=costs)
+        posterior_samples=posterior_samples, costs=costs, M_prior=M_prior)
     all(isinf, gd) && return Inf
     maximum(gd) - dot(weights, gd)
 end

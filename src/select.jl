@@ -64,7 +64,7 @@ function design(
 
     if use_exchange
         _select_batch(problem, candidates, particles, n;
-            posterior_samples, exchange_steps, budget, x_prev)
+            posterior_samples, exchange_steps, budget, x_prev, prior_designs)
     else
         _select_greedy(problem, candidates, particles, n;
             criterion, posterior_samples, budget, x_prev, prior_designs)
@@ -159,16 +159,12 @@ function _select_greedy(
         baseline = baseline_count == 0 ? -Inf : baseline_total / baseline_count
 
         # Score each candidate by E[Φ(M_running + M_k) - Φ(M_running)] / cost
-        # For switching problems, amortize the one-time switching cost over
-        # the remaining picks so the greedy scorer fairly evaluates a switch.
-        remaining_picks = n - step + 1
         scores = fill(-Inf, K)
         for k in 1:K
-            c_actual = total_cost(prob, prev, candidates[k])
-            if c_actual > remaining_budget
+            c = total_cost(prob, prev, candidates[k])
+            if c > remaining_budget
                 continue
             end
-            c = _amortized_cost(prob, prev, candidates[k], remaining_picks)
 
             total = 0.0
             count = 0
@@ -195,9 +191,8 @@ function _select_greedy(
         if all(==(-Inf), scores)
             @debug "All transform-based scores are -Inf; falling back to tr(FIM) scoring"
             for k in 1:K
-                c_actual = total_cost(prob, prev, candidates[k])
-                c_actual > remaining_budget && continue
-                c = _amortized_cost(prob, prev, candidates[k], remaining_picks)
+                c = total_cost(prob, prev, candidates[k])
+                c > remaining_budget && continue
                 total = 0.0
                 for ji in 1:np
                     @inbounds for col in 1:p, row in 1:p
@@ -241,17 +236,30 @@ function _select_batch(
     prob, candidates, particles, n;
     posterior_samples, exchange_steps,
     budget=Inf, x_prev=nothing,
+    prior_designs=NamedTuple[],
 )
     # Per-measurement costs (1-arg cost function)
     costs_vec = [prob.cost(x) for x in candidates]
     has_uniform_cost = all(c -> c ≈ costs_vec[1], costs_vec)
     costs = has_uniform_cost ? nothing : costs_vec
 
+    # Scale factor: M_w has weights summing to 1; M_prior is from many observations.
+    # Divide M_prior by design_scale to put them on the same scale.
+    # Without costs: M_w = Σ wₖ Mₖ (1 measurement), scale = n
+    # With costs: M_w = Σ (wₖ/cₖ) Mₖ (1 unit of budget), scale = budget
+    design_scale = if costs !== nothing && isfinite(budget)
+        budget
+    else
+        Float64(n)
+    end
+
     @info "Running exchange algorithm for batch design..."
     weights = exchange(prob, candidates, particles;
         posterior_samples=posterior_samples,
         max_iter=exchange_steps,
-        costs=costs)
+        costs=costs,
+        prior_designs=prior_designs,
+        design_scale=design_scale)
 
     # Apportion: use budget-aware method when costs vary and budget is finite
     counts = if costs !== nothing && isfinite(budget)

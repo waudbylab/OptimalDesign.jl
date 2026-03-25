@@ -80,20 +80,3 @@ function total_cost(prob::SwitchingDesignProblem, prev, x)
     c
 end
 
-"""
-    _amortized_cost(prob, prev, x, remaining_picks)
-
-Cost of measuring at `x` for scoring purposes in the greedy selector.
-For switching problems, the one-time switching cost is amortized over
-`remaining_picks` so the scorer doesn't over-penalise the first measurement
-after a switch.
-"""
-_amortized_cost(prob::DesignProblem, prev, x, remaining_picks) = prob.cost(x)
-
-function _amortized_cost(prob::SwitchingDesignProblem, prev, x, remaining_picks)
-    c = prob.cost(x)
-    if prev !== nothing && getfield(prev, prob.switching_param) != getfield(x, prob.switching_param)
-        c += prob.switching_cost / remaining_picks
-    end
-    c
-end

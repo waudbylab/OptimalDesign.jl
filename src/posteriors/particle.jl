@@ -39,7 +39,7 @@ Weighted variance of the particles. Returns a `ComponentArray` with one entry pe
 function Statistics.var(p::Particles)
     w = exp.(p.log_weights .- logsumexp(p.log_weights))
     μ = Statistics.mean(p)
-    sum(w[i] * (p.particles[i] .- μ).^2 for i in eachindex(p.particles))
+    sum(w[i] * (p.particles[i] .- μ) .^ 2 for i in eachindex(p.particles))
 end
 
 """
@@ -108,7 +108,7 @@ with adaptive tempering, so even a single highly informative observation
 is tempered in gracefully.
 """
 function update!(posterior::Particles, prob::AbstractDesignProblem, x, y;
-                 ess_threshold::Float64=0.5, a::Float64=0.95)
+    ess_threshold::Float64=0.5, a::Float64=0.95)
     update!(posterior, prob, [(x=x, y=y)]; ess_threshold=ess_threshold, a=a)
 end
 
@@ -126,8 +126,8 @@ step size Δβ is chosen by bisection so that the ESS stays just above
 Each element of `data` must have fields `x` (design point) and `y` (observation).
 """
 function update!(posterior::Particles, prob::AbstractDesignProblem,
-                 data::AbstractVector{<:NamedTuple};
-                 ess_threshold::Float64=0.5, a::Float64=0.95)
+    data::AbstractVector{<:NamedTuple};
+    ess_threshold::Float64=0.5, a::Float64=0.95)
     n = length(posterior.particles)
     target_ess = ess_threshold * n
 
@@ -152,20 +152,20 @@ function update!(posterior::Particles, prob::AbstractDesignProblem,
         β += Δβ
 
         ess = effective_sample_size(posterior)
-        @debug "Tempering step $step: Δβ=$(round(Δβ; digits=4)), β=$(round(β; digits=4)), ESS=$(round(ess; digits=1))"
+        # @debug "Tempering step $step: Δβ=$(round(Δβ; digits=4)), β=$(round(β; digits=4)), ESS=$(round(ess; digits=1))"
 
         if ess < target_ess
             resample!(posterior; prob=prob, a=a)
             total_ll = _compute_total_ll(posterior, prob, data)
         end
     end
-    @debug "Tempering complete in $step steps"
+    # @debug "Tempering complete in $step steps"
     posterior
 end
 
 """Compute total log-likelihood of all data for each particle."""
 function _compute_total_ll(posterior::Particles, prob::AbstractDesignProblem,
-                           data::AbstractVector{<:NamedTuple})
+    data::AbstractVector{<:NamedTuple})
     n = length(posterior.particles)
     total_ll = Vector{Float64}(undef, n)
     for i in 1:n
@@ -184,8 +184,8 @@ Bisect for the largest Δβ ∈ (0, remaining] such that trial ESS ≥ target.
 If even Δβ = remaining keeps ESS above target, return remaining (finish in one step).
 """
 function _bisect_Δβ(log_weights::Vector{Float64}, total_ll::Vector{Float64},
-                    remaining::Float64, target_ess::Float64;
-                    max_iter::Int=30, tol::Float64=1e-6)
+    remaining::Float64, target_ess::Float64;
+    max_iter::Int=30, tol::Float64=1e-6)
     # First check: can we take the full remaining step?
     trial_ess = _trial_ess(log_weights, total_ll, remaining)
     trial_ess >= target_ess && return remaining
@@ -263,7 +263,7 @@ function _param_transforms(parameters::NamedTuple)
         else
             # Bounded [lo, hi] (e.g., Uniform, Beta)
             (forward=x -> log((x - lo + eps()) / (hi - x + eps())),
-             inverse=z -> lo + (hi - lo) / (1 + exp(-z)))
+                inverse=z -> lo + (hi - lo) / (1 + exp(-z)))
         end
     end
 end

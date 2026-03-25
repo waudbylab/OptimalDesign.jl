@@ -14,7 +14,7 @@ Base.isempty(ξ::ExperimentalDesign) = isempty(ξ.allocation)
 
 Total number of measurements in the design.
 """
-n_obs(ξ::ExperimentalDesign) = sum(c for (_, c) in ξ.allocation)
+n_obs(ξ::ExperimentalDesign) = isempty(ξ.allocation) ? 0 : sum(c for (_, c) in ξ.allocation)
 
 """
     weights(ξ::ExperimentalDesign, candidates)
@@ -52,4 +52,64 @@ function Base.show(io::IO, ::MIME"text/plain", ξ::ExperimentalDesign)
         println(io, "  ", rpad(vals, max_val), "  ×", lpad(string(count), max_cnt), "  ", bar)
     end
 end
+
+# --- Slicing ---
+
+"""
+    _take_first(ξ::ExperimentalDesign, n::Int; switching_param=nothing) → ExperimentalDesign
+
+Extract the first `n` measurements from a design.
+
+When `switching_param` is provided, measurements are apportioned proportionally
+within each contiguous group block (identified by `switching_param` value),
+preserving the time-point diversity of the exchange algorithm's allocation.
+Without `switching_param`, simply takes the first `n` in sequence order.
+"""
+function _take_first(ξ::ExperimentalDesign{T}, n::Int;
+                     switching_param::Union{Symbol,Nothing}=nothing) where T
+    if switching_param === nothing
+        # Simple sequential take
+        result = Tuple{T, Int}[]
+        remaining = n
+        for (x, count) in ξ
+            remaining <= 0 && break
+            take = min(count, remaining)
+            push!(result, (x, take))
+            remaining -= take
+        end
+        return ExperimentalDesign(result)
+    end
+
+    # Group-aware take: apportion within each contiguous group block
+    # so that within-group time diversity is preserved.
+    blocks = Vector{Vector{Tuple{T, Int}}}()
+    current_group = nothing
+    for (x, count) in ξ
+        g = getfield(x, switching_param)
+        if g != current_group
+            push!(blocks, Tuple{T, Int}[])
+            current_group = g
+        end
+        push!(blocks[end], (x, count))
+    end
+
+    result = Tuple{T, Int}[]
+    remaining = n
+    for block in blocks
+        remaining <= 0 && break
+        block_total = sum(c for (_, c) in block)
+        take = min(block_total, remaining)
+
+        # Apportion proportionally across the block's design points
+        block_weights = [c / block_total for (_, c) in block]
+        counts = apportion(block_weights, take)
+
+        for (idx, (x, _)) in enumerate(block)
+            counts[idx] > 0 && push!(result, (x, counts[idx]))
+        end
+        remaining -= take
+    end
+    ExperimentalDesign(result)
+end
+
 

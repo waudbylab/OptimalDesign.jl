@@ -15,8 +15,8 @@ using LinearAlgebra
 using Random
 using GLMakie
 
-ENV["JULIA_DEBUG"] = OptimalDesign
-Random.seed!(42)
+# ENV["JULIA_DEBUG"] = OptimalDesign
+# Random.seed!(42)
 
 # ═══════════════════════════════════════════════
 # 1. The model and ground truth
@@ -31,8 +31,8 @@ function model(θ, x)
 end
 
 # Ground truth (unknown to the design algorithm)
-θ_true = ComponentArray(A₁=1.0, k₁=10.0, A₂=1.0, k₂=40.0)
-σ_true = 0.05
+θ_true = ComponentArray(A₁=1.0, k₁=5.0, A₂=1.0, k₂=45.0)
+σ_true = 0.1
 budget = 200.0
 
 acquire(x) = model(θ_true, x) + σ_true * randn()

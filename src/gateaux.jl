@@ -29,6 +29,7 @@ function gateaux_derivative(
     weights::AbstractVector;
     posterior_samples::Int=50,
     costs::Union{Nothing,AbstractVector{<:Real}}=nothing,
+    M_prior=nothing,
 )
     criterion = prob.criterion
     K = length(candidates)
@@ -46,6 +47,9 @@ function gateaux_derivative(
 
         # Build weighted FIM in full parameter space
         M_w = _particle_weighted_fim(prob, θ, candidates, weights; cache=cache, costs=costs)
+        if M_prior !== nothing
+            M_w .+= M_prior[j]
+        end
 
         C = cholesky(Symmetric(M_w); check=false)
         if !issuccess(C)

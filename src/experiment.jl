@@ -35,6 +35,7 @@ function run_adaptive(
     budget::Real,
     posterior_samples::Int=50,
     n_per_step::Int=1,
+    exchange_steps::Int=100,
     headless::Bool=false,
     prediction_grid=nothing,
     record_posterior::Bool=true,
@@ -61,14 +62,36 @@ function run_adaptive(
     while spent < budget
         step += 1
 
-        # Design next measurement(s) using the greedy selector (not exchange).
-        # The greedy selector picks points sequentially, respecting accumulated
-        # information (prior_designs) and switching costs at each pick.
-        ξ_step = design(prob, candidates, posterior;
-            n=n_per_step,
-            posterior_samples=posterior_samples, x_prev=x_prev,
-            budget=budget - spent, exchange_algorithm=false,
-            prior_designs=design_points(log))
+        # For switching problems with n_per_step > 1, use receding-horizon:
+        # plan a full-budget batch design via the exchange algorithm (which
+        # naturally amortises switching costs), sequence to minimise switches,
+        # then execute only the first n_per_step measurements.
+        # prior_designs ensures the exchange algorithm sees accumulated FIM.
+        if prob isa SwitchingDesignProblem && n_per_step > 1
+            ξ_full = design(prob, candidates, posterior;
+                budget=budget - spent,
+                posterior_samples=posterior_samples, x_prev=x_prev,
+                exchange_algorithm=true, exchange_steps=exchange_steps,
+                prior_designs=design_points(log))
+            ξ_step = _take_first(ξ_full, n_per_step; switching_param=prob.switching_param)
+
+            # Log per-group allocation of the full plan
+            param = prob.switching_param
+            group_counts = Dict{Any,Int}()
+            for (x, count) in ξ_full
+                g = getfield(x, param)
+                group_counts[g] = get(group_counts, g, 0) + count
+            end
+            alloc_str = join(["$param=$g: $c" for (g, c) in sort!(collect(group_counts); by=first)], ", ")
+            @debug "Receding horizon plan: $(n_obs(ξ_full)) total ($alloc_str), " *
+                   "executing $(n_obs(ξ_step)), x_prev=$(x_prev === nothing ? "nothing" : x_prev)"
+        else
+            ξ_step = design(prob, candidates, posterior;
+                n=n_per_step,
+                posterior_samples=posterior_samples, x_prev=x_prev,
+                budget=budget - spent, exchange_algorithm=false,
+                prior_designs=design_points(log))
+        end
 
         isempty(ξ_step) && break
 
