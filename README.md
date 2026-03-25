@@ -46,11 +46,3 @@ prior = Particles(prob, 1000)
 acquire(x) = model(θ_true, x) + 0.1 * randn()
 result = run_batch(ξ, prob, prior, acquire)
 ```
-
-## Documentation
-
-See the [documentation](https://waudbygroup.github.io/OptimalDesign.jl/) for the full guide, theory, and examples.
-
-## License
-
-MIT — see [LICENSE](LICENSE).
