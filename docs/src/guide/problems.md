@@ -120,17 +120,19 @@ constraint = (x, θ) -> x.dose ≤ θ.max_dose   # parameter-dependent constrain
 
 Design points are represented as `NamedTuple`s. Use `candidate_grid` to generate the full outer product from named ranges:
 
-```julia
-# One design variable
-candidates = candidate_grid(t = range(0.001, 0.5, length = 200))
+```jldoctest
+julia> candidate_grid(t = [0.1, 0.2, 0.3])
+3-element Vector{@NamedTuple{t::Float64}}:
+ (t = 0.1,)
+ (t = 0.2,)
+ (t = 0.3,)
 
-# Two design variables
-candidates = candidate_grid(t = range(0, 10, length = 20),
-                            dose = range(0.1, 1.0, length = 15))
-
-# Discrete + continuous
-candidates = candidate_grid(channel = [1, 2],
-                            t = range(0.01, 0.5, length = 100))
+julia> candidate_grid(channel = [1, 2], t = [0.1, 0.2])
+4-element Vector{@NamedTuple{channel::Int64, t::Float64}}:
+ (channel = 1, t = 0.1)
+ (channel = 1, t = 0.2)
+ (channel = 2, t = 0.1)
+ (channel = 2, t = 0.2)
 ```
 
 The field names in candidates must match what your `predict` function expects on `x`.

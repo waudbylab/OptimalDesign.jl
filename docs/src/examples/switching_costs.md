@@ -1,5 +1,8 @@
 # Switching Costs
 
+!!! warning "Experimental"
+    The switching-cost API is experimental and may change in future releases.
+
 In many experiments, changing measurement configuration is expensive — switching an instrument channel, moving a sample, or recalibrating. OptimalDesign.jl models this with a **switching cost**: a fixed penalty incurred whenever a discrete design variable changes value between consecutive measurements.
 
 ## The model
@@ -55,7 +58,14 @@ nothing # hide
 
 ## Running the adaptive experiment
 
-We use `n_per_step = 10` to design batches of 10 measurements at a time. This amortises the switching cost — the algorithm can allocate a block of measurements on one channel before switching, rather than reconsidering the channel at every single step. We also use a larger number of particles for the prior/posterior reflecting the increased number of parameters:
+With `n_per_step > 1`, the algorithm uses a **receding-horizon** strategy:
+
+1. **Plan**: compute an optimal batch design for the *entire remaining budget* using the exchange algorithm, accounting for accumulated information from prior observations
+2. **Sequence**: reorder the design to minimise switching costs (via TSP over the support points)
+3. **Execute**: take the first `n_per_step` measurements, apportioned proportionally within each group to preserve time-point diversity
+4. **Update**: update the posterior with the new observations, then repeat from step 1
+
+This amortises the switching cost — the algorithm allocates a block of measurements on one channel before switching, rather than reconsidering the channel at every single step. We also use a larger number of particles for the prior/posterior reflecting the increased number of parameters:
 
 ```@example switching
 prior = Particles(prob, 10000)

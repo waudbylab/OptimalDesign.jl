@@ -28,3 +28,6 @@ LocalPreferences.toml
 JuliaLocalPreferences.toml
 
 *.mp4
+
+# macOS
+.DS_Store

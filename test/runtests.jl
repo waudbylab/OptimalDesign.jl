@@ -34,7 +34,7 @@ const od_loglikelihood = OptimalDesign.loglikelihood
         )
         @test prob.predict isa Function
         @test prob.jacobian === nothing
-        @test prob.transformation isa Identity
+        @test prob.transformation isa OptimalDesign.Identity
         @test prob.cost((t=0.1,), (t=0.2,)) == 1.0
         @test prob.constraint((t=0.1,), nothing) == true
 
@@ -44,7 +44,7 @@ const od_loglikelihood = OptimalDesign.loglikelihood
             jacobian=(θ, x) -> [exp(-θ.R₂ * x.t) -θ.A * x.t * exp(-θ.R₂ * x.t)],
             sigma=(θ, x) -> 0.05,
             parameters=(A=Normal(1, 0.1), R₂=LogNormal(2, 0.5)),
-            transformation=DeltaMethod(θ -> ComponentArray(R₂=θ.R₂)),
+            transformation=select(:R₂),
             cost=x -> x.t + 0.1,
         )
         @test prob2.jacobian !== nothing
@@ -240,7 +240,7 @@ const od_loglikelihood = OptimalDesign.loglikelihood
         particles = draw(prob.parameters, 100)
         x = (t=0.1,)
 
-        u = expected_utility(prob, particles, x; posterior_samples=50)
+        u = OptimalDesign.expected_utility(prob, particles, x; posterior_samples=50)
         @test isfinite(u)
 
         # Score multiple candidates
@@ -255,7 +255,7 @@ const od_loglikelihood = OptimalDesign.loglikelihood
             parameters=(A=Normal(1, 0.1), R₂=LogNormal(2, 0.5)),
             sigma=Returns(0.05),
         )
-        u_scalar = expected_utility(prob_scalar, particles, x; posterior_samples=50)
+        u_scalar = OptimalDesign.expected_utility(prob_scalar, particles, x; posterior_samples=50)
         @test !isnan(u_scalar)
     end
 
@@ -339,7 +339,7 @@ const od_loglikelihood = OptimalDesign.loglikelihood
 
         # Select 3 points greedily
         ξ = design(prob, candidates, prior;
-            n=3, criterion=DCriterion(), posterior_samples=50, exchange_algorithm=false)
+            n=3, posterior_samples=50)
 
         @test !isempty(ξ)
         total_count = sum(last.(ξ))
@@ -363,10 +363,10 @@ const od_loglikelihood = OptimalDesign.loglikelihood
 
         # Budget of 2.0 should limit selections
         ξ = design(prob, candidates, prior;
-            n=100, criterion=DCriterion(), posterior_samples=50,
-            budget=2.0, exchange_algorithm=false)
+            n=100, posterior_samples=50,
+            budget=2.0)
 
-        total_cost = sum(prob.cost(nothing, x) * count for (x, count) in ξ)
+        total_cost = sum(prob.cost(x) * count for (x, count) in ξ)
         @test total_cost <= 2.0
     end
 
@@ -423,7 +423,7 @@ const od_loglikelihood = OptimalDesign.loglikelihood
         particles = draw(prob.parameters, 100)
 
         weights = OptimalDesign.exchange(prob, candidates, particles;
-            criterion=DCriterion(), posterior_samples=50, max_iter=100)
+            posterior_samples=50, max_iter=100)
 
         gd = gateaux_derivative(prob, candidates, particles, weights;
             posterior_samples=50)
@@ -578,7 +578,169 @@ const od_loglikelihood = OptimalDesign.loglikelihood
     end
 
     # =============================================
-    # Phase 4: Plotting building blocks
+    # Phase 4: ExperimentalDesign utilities
+    # =============================================
+
+    @testset "ExperimentalDesign basics" begin
+        ξ = ExperimentalDesign([((t=0.1,), 3), ((t=0.2,), 5), ((t=0.3,), 2)])
+        @test n_obs(ξ) == 10
+        @test length(ξ) == 3
+        @test !isempty(ξ)
+        @test ξ[1] == ((t=0.1,), 3)
+        @test ξ[end] == ((t=0.3,), 2)
+
+        # Iteration
+        xc = collect(ξ)
+        @test length(xc) == 3
+        @test xc[2] == ((t=0.2,), 5)
+
+        # Weights
+        candidates = [(t=0.1,), (t=0.2,), (t=0.3,), (t=0.4,)]
+        w = weights(ξ, candidates)
+        @test length(w) == 4
+        @test sum(w) ≈ 1.0
+        @test w[4] == 0.0
+        @test w[1] ≈ 0.3  # 3/10
+
+        # Empty design
+        ξ_empty = ExperimentalDesign(Tuple{@NamedTuple{t::Float64}, Int}[])
+        @test n_obs(ξ_empty) == 0
+        @test isempty(ξ_empty)
+    end
+
+    @testset "_take_first — sequential" begin
+        ξ = ExperimentalDesign([((t=0.1,), 5), ((t=0.2,), 5), ((t=0.3,), 5)])
+
+        ξ3 = OptimalDesign._take_first(ξ, 3)
+        @test n_obs(ξ3) == 3
+        @test ξ3[1] == ((t=0.1,), 3)
+
+        ξ7 = OptimalDesign._take_first(ξ, 7)
+        @test n_obs(ξ7) == 7
+        @test length(ξ7) == 2  # spans first two points
+
+        ξ15 = OptimalDesign._take_first(ξ, 15)
+        @test n_obs(ξ15) == 15  # takes all
+    end
+
+    @testset "_take_first — switching_param aware" begin
+        # Group 1: two time points, group 2: two time points
+        ξ = ExperimentalDesign([
+            ((i=1, t=0.1), 6), ((i=1, t=0.2), 4),
+            ((i=2, t=0.1), 8), ((i=2, t=0.3), 2),
+        ])
+
+        # Take 5 from group 1 (total=10): should apportion across both time points
+        ξ5 = OptimalDesign._take_first(ξ, 5; switching_param=:i)
+        @test n_obs(ξ5) == 5
+        # All should be from group 1
+        @test all(x.i == 1 for (x, _) in ξ5)
+        # Should have measurements at both time points (proportional to 6:4)
+        @test length(ξ5) == 2
+
+        # Take 10 (all of group 1): should get all of group 1
+        ξ10 = OptimalDesign._take_first(ξ, 10; switching_param=:i)
+        @test n_obs(ξ10) == 10
+        @test all(x.i == 1 for (x, _) in ξ10)
+
+        # Take 15: should get all of group 1 + 5 from group 2
+        ξ15 = OptimalDesign._take_first(ξ, 15; switching_param=:i)
+        @test n_obs(ξ15) == 15
+        g1 = sum(c for (x, c) in ξ15 if x.i == 1)
+        g2 = sum(c for (x, c) in ξ15 if x.i == 2)
+        @test g1 == 10
+        @test g2 == 5
+        # Group 2 should be spread across both time points
+        g2_points = [(x, c) for (x, c) in ξ15 if x.i == 2]
+        @test length(g2_points) == 2
+    end
+
+    @testset "efficiency" begin
+        prob = DesignProblem(
+            (θ, x) -> [θ.A * exp(-θ.R₂ * x.t), θ.A * exp(-θ.R₂ * x.t * 2)],
+            parameters=(A=Normal(1, 0.1), R₂=LogNormal(2, 0.5)),
+            sigma=Returns([0.05, 0.05]),
+        )
+        candidates = [(t=t,) for t in range(0.01, 0.5, length=20)]
+        prior = Particles(prob, 100)
+
+        ξ_opt = design(prob, candidates, prior; n=10, posterior_samples=100)
+        ξ_unif = uniform_allocation(candidates, 10)
+
+        # Optimal vs itself ≈ 1.0 (uses all particles to reduce sampling noise)
+        eff_self = efficiency(ξ_opt, ξ_opt, prob, candidates, prior; posterior_samples=100)
+        @test eff_self ≈ 1.0 atol=0.1
+
+        # Uniform vs optimal should be < 1
+        eff = efficiency(ξ_unif, ξ_opt, prob, candidates, prior; posterior_samples=100)
+        @test 0.0 < eff < 1.1
+    end
+
+    # =============================================
+    # Phase 4b: SwitchingDesignProblem (experimental)
+    # =============================================
+
+    @testset "SwitchingDesignProblem construction" begin
+        prob = DesignProblem(
+            (θ, x) -> x.i == 1 ? θ.A₁ * exp(-θ.R₂₁ * x.t) : θ.A₂ * exp(-θ.R₂₂ * x.t),
+            parameters=(A₁=Normal(1, 0.1), R₂₁=LogNormal(2, 0.5),
+                        A₂=Normal(1, 0.1), R₂₂=LogNormal(2, 0.5)),
+            sigma=Returns(0.05),
+            cost=x -> x.t + 1,
+            switching_cost=(:i, 10.0),
+        )
+
+        @test prob isa OptimalDesign.SwitchingDesignProblem
+        @test prob.switching_param == :i
+        @test prob.switching_cost == 10.0
+
+        # total_cost with no switching
+        c1 = OptimalDesign.total_cost(prob, (i=1, t=0.1), (i=1, t=0.2))
+        @test c1 == prob.cost((i=1, t=0.2))
+
+        # total_cost with switching
+        c2 = OptimalDesign.total_cost(prob, (i=1, t=0.1), (i=2, t=0.1))
+        @test c2 == prob.cost((i=2, t=0.1)) + 10.0
+    end
+
+    @testset "sequencing" begin
+        prob = DesignProblem(
+            (θ, x) -> x.i == 1 ? θ.A₁ * exp(-θ.R₂₁ * x.t) : θ.A₂ * exp(-θ.R₂₂ * x.t),
+            parameters=(A₁=Normal(1, 0.1), R₂₁=LogNormal(2, 0.5),
+                        A₂=Normal(1, 0.1), R₂₂=LogNormal(2, 0.5)),
+            sigma=Returns(0.05),
+            cost=Returns(1.0),
+            switching_cost=(:i, 10.0),
+        )
+
+        # Interleaved input: should be reordered to group by :i
+        result = [((i=1, t=0.1), 3), ((i=2, t=0.1), 2), ((i=1, t=0.2), 4), ((i=2, t=0.2), 1)]
+        sequenced = OptimalDesign._sequence_design(prob, result, nothing)
+
+        # Should group all i=1 together and all i=2 together (or vice versa)
+        groups = [x.i for (x, _) in sequenced]
+        switches = sum(groups[k] != groups[k-1] for k in 2:length(groups))
+        @test switches <= 1  # at most one switch
+    end
+
+    @testset "design with variable costs" begin
+        prob = DesignProblem(
+            (θ, x) -> [θ.A * exp(-θ.R₂ * x.t), θ.A * exp(-θ.R₂ * x.t * 2)],
+            parameters=(A=Normal(1, 0.1), R₂=LogNormal(2, 0.5)),
+            sigma=Returns([0.05, 0.05]),
+            cost=x -> x.t + 0.5,
+        )
+        candidates = [(t=t,) for t in range(0.01, 0.5, length=20)]
+        prior = Particles(prob, 100)
+
+        ξ = design(prob, candidates, prior; budget=3.0, posterior_samples=50)
+        total = sum(prob.cost(x) * count for (x, count) in ξ)
+        @test total <= 3.0
+        @test n_obs(ξ) >= 1
+    end
+
+    # =============================================
+    # Phase 5: Plotting building blocks
     # =============================================
 
     @testset "posterior_predictions and credible_band" begin

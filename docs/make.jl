@@ -4,11 +4,16 @@ Pkg.activate(@__DIR__)  # Activate the docs environment
 using Documenter
 using OptimalDesign
 
+DocMeta.setdocmeta!(OptimalDesign, :DocTestSetup,
+    :(using OptimalDesign, ComponentArrays, Distributions, Statistics, Random);
+    recursive=true)
+
 makedocs(;
     sitename="OptimalDesign.jl",
     format=Documenter.HTML(),
     modules=[OptimalDesign],
-    warnonly=[:missing_docs, :cross_references],
+    doctest=true,
+    warnonly=[:cross_references],
     pages=[
         "Home" => "index.md",
         "Quickstart" => "quickstart.md",
@@ -27,4 +32,9 @@ makedocs(;
         ],
         "API" => "api.md",
     ],
+)
+
+deploydocs(;
+    repo="github.com/waudbygroup/OptimalDesign.jl",
+    devbranch="main",
 )
