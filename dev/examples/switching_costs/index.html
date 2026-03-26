@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Switching Costs · OptimalDesign.jl</title><meta name="title" content="Switching Costs · OptimalDesign.jl"/><meta property="og:title" content="Switching Costs · OptimalDesign.jl"/><meta property="twitter:title" content="Switching Costs · OptimalDesign.jl"/><meta name="description" content="Documentation for OptimalDesign.jl."/><meta property="og:description" content="Documentation for OptimalDesign.jl."/><meta property="twitter:description" content="Documentation for OptimalDesign.jl."/><script data-outdated-warner src="../../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL="../.."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../../assets/documenter.js"></script><script src="../../search_index.js"></script><script src="../../siteinfo.js"></script><script src="../../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../../">OptimalDesign.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../../">Home</a></li><li><a class="tocitem" href="../../quickstart/">Quickstart</a></li><li><span class="tocitem">Guide</span><ul><li><a class="tocitem" href="../../guide/workflow/">Workflows</a></li><li><a class="tocitem" href="../../guide/problems/">Defining Problems</a></li><li><a class="tocitem" href="../../guide/posteriors/">Posterior Inference</a></li><li><a class="tocitem" href="../../guide/plotting/">Plotting</a></li></ul></li><li><a class="tocitem" href="../../theory/">Theory</a></li><li><span class="tocitem">Examples</span><ul><li><a class="tocitem" href="../batch_design/">Batch Design</a></li><li><a class="tocitem" href="../vector_observation/">Vector Observations</a></li><li><a class="tocitem" href="../adaptive_design/">Adaptive Design</a></li><li class="is-active"><a class="tocitem" href>Switching Costs</a><ul class="internal"><li><a class="tocitem" href="#The-model"><span>The model</span></a></li><li><a class="tocitem" href="#Defining-the-design-problem"><span>Defining the design problem</span></a></li><li><a class="tocitem" href="#Running-the-adaptive-experiment"><span>Running the adaptive experiment</span></a></li><li><a class="tocitem" href="#Convergence"><span>Convergence</span></a></li><li><a class="tocitem" href="#Corner-plot"><span>Corner plot</span></a></li><li><a class="tocitem" href="#Posterior-evolution"><span>Posterior evolution</span></a></li></ul></li></ul></li><li><a class="tocitem" href="../../api/">API</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Examples</a></li><li class="is-active"><a href>Switching Costs</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Switching Costs</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/waudbygroup/OptimalDesign.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/waudbygroup/OptimalDesign.jl/blob/main/docs/src/examples/switching_costs.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Switching-Costs"><a class="docs-heading-anchor" href="#Switching-Costs">Switching Costs</a><a id="Switching-Costs-1"></a><a class="docs-heading-anchor-permalink" href="#Switching-Costs" title="Permalink"></a></h1><div class="admonition is-warning" id="Experimental-cd141cbe85b867d3"><header class="admonition-header">Experimental<a class="admonition-anchor" href="#Experimental-cd141cbe85b867d3" title="Permalink"></a></header><div class="admonition-body"><p>The switching-cost API is experimental and may change in future releases.</p></div></div><p>In many experiments, changing measurement configuration is expensive — switching an instrument channel, moving a sample, or recalibrating. OptimalDesign.jl models this with a <strong>switching cost</strong>: a fixed penalty incurred whenever a discrete design variable changes value between consecutive measurements.</p><h2 id="The-model"><a class="docs-heading-anchor" href="#The-model">The model</a><a id="The-model-1"></a><a class="docs-heading-anchor-permalink" href="#The-model" title="Permalink"></a></h2><p>Two exponential decays, selectively measured via a discrete control variable <span>$i \in \{1, 2\}$</span>:</p><p class="math-container">\[y = A_i \exp(-k_i \, t) + \varepsilon\]</p><p>Each measurement observes <strong>one</strong> decay (chosen by <span>$i$</span>). Switching between decays costs 20 budget units.</p><pre><code class="language-julia hljs">using OptimalDesign
+using CairoMakie
+using ComponentArrays
+using Distributions
+
+function model(θ, x)
+    if x.i == 1
+        θ.A₁ * exp(-θ.k₁ * x.t)
+    else
+        θ.A₂ * exp(-θ.k₂ * x.t)
+    end
+end
+
+θ_true = ComponentArray(A₁ = 0.7, k₁ = 10.0, A₂ = 1.5, k₂ = 40.0)
+σ = 0.05
+acquire(x) = model(θ_true, x) + σ * randn()</code></pre><h2 id="Defining-the-design-problem"><a class="docs-heading-anchor" href="#Defining-the-design-problem">Defining the design problem</a><a id="Defining-the-design-problem-1"></a><a class="docs-heading-anchor-permalink" href="#Defining-the-design-problem" title="Permalink"></a></h2><p>The <code>switching_cost = (:i, 20.0)</code> tells the algorithm that changing the value of <code>x.i</code> between consecutive measurements costs 20, on top of the per-measurement <code>cost</code>. The candidates span both channels and a range of times:</p><pre><code class="language-julia hljs">prob = DesignProblem(
+    model,
+    parameters = (
+        A₁ = Normal(1, 0.1),    k₁ = LogUniform(1, 50),
+        A₂ = Normal(1, 0.1),    k₂ = LogUniform(1, 50)),
+    transformation = select(:k₁, :k₂),
+    sigma = Returns(σ),
+    cost = x -&gt; x.t + 1,
+    switching_cost = (:i, 20.0),
+)
+
+candidates = candidate_grid(i = [1, 2], t = range(0.001, 0.5, length = 200))</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr33"><span class="sgr1">┌ Warning: </span></span>Problems with switching costs are experimental and may not be fully supported.
+<span class="sgr33"><span class="sgr1">└ </span></span><span class="sgr90">@ OptimalDesign ~/work/OptimalDesign.jl/OptimalDesign.jl/src/problem.jl:51</span></code></pre><h2 id="Running-the-adaptive-experiment"><a class="docs-heading-anchor" href="#Running-the-adaptive-experiment">Running the adaptive experiment</a><a id="Running-the-adaptive-experiment-1"></a><a class="docs-heading-anchor-permalink" href="#Running-the-adaptive-experiment" title="Permalink"></a></h2><p>With <code>n_per_step &gt; 1</code>, the algorithm uses a <strong>receding-horizon</strong> strategy:</p><ol><li><strong>Plan</strong>: compute an optimal batch design for the <em>entire remaining budget</em> using the exchange algorithm, accounting for accumulated information from prior observations</li><li><strong>Sequence</strong>: reorder the design to minimise switching costs (via TSP over the support points)</li><li><strong>Execute</strong>: take the first <code>n_per_step</code> measurements, apportioned proportionally within each group to preserve time-point diversity</li><li><strong>Update</strong>: update the posterior with the new observations, then repeat from step 1</li></ol><p>This amortises the switching cost — the algorithm allocates a block of measurements on one channel before switching, rather than reconsidering the channel at every single step. We also use a larger number of particles for the prior/posterior reflecting the increased number of parameters:</p><pre><code class="language-julia hljs">prior = Particles(prob, 10000)
+
+result = run_adaptive(
+    prob, candidates, prior, acquire;
+    budget = 200.0,
+    n_per_step = 10,
+)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr36"><span class="sgr1">[ Info: </span></span>Adaptive experiment: budget=200.0, 400 candidates, 4 parameters (A₁, k₁, A₂, k₂)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Running exchange algorithm for batch design...
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Exchange: K=400 candidates, q=2.0, 50 fixed particles, max_iter=100
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Init: 20 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2: refining weights on 13 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Exchange complete: 28 support points, fw_gap=0.0455
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Step 10/177: spent=11.31/200.0, ESS=7221.0, posterior=(A₁=0.735, k₁=11.946, A₂=0.988, k₂=13.289)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Running exchange algorithm for batch design...
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Exchange: K=400 candidates, q=2.0, 50 fixed particles, max_iter=100, 10 prior obs
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Init: 20 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2: refining weights on 11 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Exchange complete: 20 support points, fw_gap=0.0105
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Step 20/181: spent=22.14/200.0, ESS=5795.0, posterior=(A₁=0.718, k₁=10.049, A₂=0.986, k₂=13.788)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Running exchange algorithm for batch design...
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Exchange: K=400 candidates, q=2.0, 50 fixed particles, max_iter=100, 20 prior obs
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Init: 20 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2: refining weights on 8 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Exchange complete: 14 support points, fw_gap=0.0274
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Step 30/182: spent=32.95/200.0, ESS=8603.0, posterior=(A₁=0.714, k₁=10.067, A₂=0.984, k₂=13.835)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Running exchange algorithm for batch design...
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Exchange: K=400 candidates, q=2.0, 50 fixed particles, max_iter=100, 30 prior obs
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Init: 20 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2: refining weights on 10 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Exchange complete: 13 support points, fw_gap=0.0076
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Step 40/182: spent=43.9/200.0, ESS=6105.0, posterior=(A₁=0.72, k₁=10.244, A₂=0.985, k₂=13.59)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Running exchange algorithm for batch design...
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Exchange: K=400 candidates, q=2.0, 50 fixed particles, max_iter=100, 40 prior obs
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Init: 20 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2: refining weights on 13 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Exchange complete: 22 support points, fw_gap=0.0086
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Step 50/182: spent=54.85/200.0, ESS=5435.0, posterior=(A₁=0.72, k₁=10.159, A₂=0.984, k₂=13.616)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Running exchange algorithm for batch design...
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Exchange: K=400 candidates, q=2.0, 50 fixed particles, max_iter=100, 50 prior obs
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Init: 20 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2: refining weights on 11 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Exchange complete: 17 support points, fw_gap=0.0182
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Step 60/183: spent=65.65/200.0, ESS=8874.0, posterior=(A₁=0.728, k₁=9.919, A₂=0.985, k₂=13.712)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Running exchange algorithm for batch design...
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Exchange: K=400 candidates, q=2.0, 50 fixed particles, max_iter=100, 60 prior obs
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Init: 20 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2: refining weights on 12 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Exchange complete: 16 support points, fw_gap=0.0198
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Step 70/183: spent=76.52/200.0, ESS=7106.0, posterior=(A₁=0.72, k₁=9.922, A₂=0.984, k₂=13.759)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Running exchange algorithm for batch design...
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Exchange: K=400 candidates, q=2.0, 50 fixed particles, max_iter=100, 70 prior obs
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Init: 20 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2: refining weights on 8 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Exchange complete: 11 support points, fw_gap=0.0048
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Step 80/183: spent=87.5/200.0, ESS=8183.0, posterior=(A₁=0.717, k₁=10.058, A₂=0.984, k₂=13.549)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Running exchange algorithm for batch design...
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Exchange: K=400 candidates, q=2.0, 50 fixed particles, max_iter=100, 80 prior obs
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Init: 20 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2: refining weights on 12 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Exchange complete: 16 support points, fw_gap=0.0076
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Step 90/183: spent=98.47/200.0, ESS=7558.0, posterior=(A₁=0.718, k₁=10.086, A₂=0.984, k₂=13.505)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Running exchange algorithm for batch design...
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Exchange: K=400 candidates, q=2.0, 50 fixed particles, max_iter=100, 90 prior obs
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Init: 20 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2: refining weights on 9 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Exchange complete: 14 support points, fw_gap=0.0287
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Step 100/154: spent=130.05/200.0, ESS=6226.0, posterior=(A₁=0.715, k₁=10.046, A₂=1.324, k₂=36.279)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Running exchange algorithm for batch design...
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Exchange: K=400 candidates, q=2.0, 50 fixed particles, max_iter=100, 100 prior obs
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Init: 20 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2: refining weights on 2 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2 converged at iter 3 (fw_gap=0.00086)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Exchange complete: 2 support points, fw_gap=0.0009
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Step 110/157: spent=140.35/200.0, ESS=7318.0, posterior=(A₁=0.718, k₁=10.225, A₂=1.432, k₂=38.223)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Running exchange algorithm for batch design...
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Exchange: K=400 candidates, q=2.0, 50 fixed particles, max_iter=100, 110 prior obs
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Init: 20 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2: refining weights on 2 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2 converged at iter 1 (fw_gap=0.00076)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Exchange complete: 2 support points, fw_gap=0.0008
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Step 120/159: spent=150.62/200.0, ESS=9957.0, posterior=(A₁=0.719, k₁=10.26, A₂=1.441, k₂=38.533)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Running exchange algorithm for batch design...
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Exchange: K=400 candidates, q=2.0, 50 fixed particles, max_iter=100, 120 prior obs
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Init: 20 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 1 converged at iter 47 (fw_gap=0.00046)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2: refining weights on 2 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2 converged at iter 1 (fw_gap=0.00046)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Exchange complete: 2 support points, fw_gap=0.0005
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Step 130/162: spent=160.89/200.0, ESS=9561.0, posterior=(A₁=0.721, k₁=10.33, A₂=1.452, k₂=37.992)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Running exchange algorithm for batch design...
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Exchange: K=400 candidates, q=2.0, 50 fixed particles, max_iter=100, 130 prior obs
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Init: 20 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 1 converged at iter 26 (fw_gap=0.00032)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2: refining weights on 2 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2 converged at iter 1 (fw_gap=0.00032)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Exchange complete: 2 support points, fw_gap=0.0003
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Step 140/164: spent=171.16/200.0, ESS=6361.0, posterior=(A₁=0.721, k₁=10.4, A₂=1.462, k₂=38.502)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Running exchange algorithm for batch design...
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Exchange: K=400 candidates, q=2.0, 50 fixed particles, max_iter=100, 140 prior obs
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Init: 20 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 1 converged at iter 23 (fw_gap=0.00086)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2: refining weights on 2 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2 converged at iter 1 (fw_gap=0.00086)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Exchange complete: 2 support points, fw_gap=0.0009
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Step 150/165: spent=181.4/200.0, ESS=6643.0, posterior=(A₁=0.722, k₁=10.537, A₂=1.48, k₂=39.282)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Running exchange algorithm for batch design...
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Exchange: K=400 candidates, q=2.0, 50 fixed particles, max_iter=100, 150 prior obs
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Init: 20 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 1 converged at iter 24 (fw_gap=0.00011)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2: refining weights on 2 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2 converged at iter 1 (fw_gap=0.00011)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Exchange complete: 2 support points, fw_gap=0.0001
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Step 160/167: spent=191.67/200.0, ESS=6311.0, posterior=(A₁=0.722, k₁=10.529, A₂=1.479, k₂=39.294)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Running exchange algorithm for batch design...
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Exchange: K=400 candidates, q=2.0, 50 fixed particles, max_iter=100, 160 prior obs
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Init: 20 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 1 converged at iter 26 (fw_gap=0.0006)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2: refining weights on 2 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2 converged at iter 1 (fw_gap=0.0006)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Exchange complete: 2 support points, fw_gap=0.0006
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Running exchange algorithm for batch design...
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Exchange: K=400 candidates, q=2.0, 50 fixed particles, max_iter=100, 168 prior obs
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Init: 20 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 1 converged at iter 36 (fw_gap=0.00065)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2: refining weights on 5 support points
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Phase 2 converged at iter 1 (fw_gap=0.00058)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Exchange complete: 5 support points, fw_gap=0.0006
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Experiment complete: 168 observations, cost=199.9/200.0, ESS=7708.0
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>  Final posterior: A₁=0.723, k₁=10.557, A₂=1.482, k₂=39.129
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Recording dashboard animation: 168 frames → switching_dashboard.gif (30 fps)
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Dashboard animation saved: switching_dashboard.gif</code></pre><p>A live dashboard is displayed of the acquisition process and evolution of parameter estimates:</p><p><img src="../switching_dashboard.gif" alt="Acquisition dashboard"/></p><h2 id="Convergence"><a class="docs-heading-anchor" href="#Convergence">Convergence</a><a id="Convergence-1"></a><a class="docs-heading-anchor-permalink" href="#Convergence" title="Permalink"></a></h2><p>The convergence plot shows both rates being learned simultaneously, with uncertainty decreasing as data accumulates:</p><pre><code class="language-julia hljs">plot_convergence(result; truth = θ_true, params = [:k₁, :k₂])</code></pre><img src="48d6ae1f.png" alt="Example block output"/><h2 id="Corner-plot"><a class="docs-heading-anchor" href="#Corner-plot">Corner plot</a><a id="Corner-plot-1"></a><a class="docs-heading-anchor-permalink" href="#Corner-plot" title="Permalink"></a></h2><pre><code class="language-julia hljs">plot_corner(result; truth = θ_true)</code></pre><img src="18a99321.png" alt="Example block output"/><h2 id="Posterior-evolution"><a class="docs-heading-anchor" href="#Posterior-evolution">Posterior evolution</a><a id="Posterior-evolution-1"></a><a class="docs-heading-anchor-permalink" href="#Posterior-evolution" title="Permalink"></a></h2><pre><code class="language-julia hljs">record_corner_animation(result.log, &quot;switching_posterior.gif&quot;;
+    params = [:k₁, :k₂],
+    truth = θ_true, framerate = 3)</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi"><span class="sgr36"><span class="sgr1">[ Info: </span></span>Recording corner animation: 25 frames → switching_posterior.gif
+<span class="sgr36"><span class="sgr1">[ Info: </span></span>Animation saved: switching_posterior.gif</code></pre><p><img src="../switching_posterior.gif" alt="Posterior evolution"/></p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../adaptive_design/">« Adaptive Design</a><a class="docs-footer-nextpage" href="../../api/">API »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.17.0 on <span class="colophon-date" title="Thursday 26 March 2026 11:53">Thursday 26 March 2026</span>. Using Julia version 1.12.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
