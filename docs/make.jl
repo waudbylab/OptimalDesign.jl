@@ -35,6 +35,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/waudbygroup/OptimalDesign.jl",
+    repo="github.com/waudbylab/OptimalDesign.jl",
     devbranch="main",
 )

@@ -1,9 +1,9 @@
 # OptimalDesign.jl
 
-[![CI](https://github.com/waudbygroup/OptimalDesign.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/waudbygroup/OptimalDesign.jl/actions/workflows/CI.yml)
-[![codecov](https://codecov.io/gh/waudbygroup/OptimalDesign.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/waudbygroup/OptimalDesign.jl)
-[![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://waudbygroup.github.io/OptimalDesign.jl/stable/)
-[![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://waudbygroup.github.io/OptimalDesign.jl/dev/)
+[![CI](https://github.com/waudbylab/OptimalDesign.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/waudbylab/OptimalDesign.jl/actions/workflows/CI.yml)
+[![codecov](https://codecov.io/gh/waudbylab/OptimalDesign.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/waudbylab/OptimalDesign.jl)
+[![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://waudbylab.github.io/OptimalDesign.jl/stable/)
+[![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://waudbylab.github.io/OptimalDesign.jl/dev/)
 
 **Adaptive and static Bayesian optimal experimental design for nonlinear models.**
 
@@ -23,7 +23,7 @@ OptimalDesign.jl helps you decide *where* and *how many times* to measure in ord
 
 ```julia
 using Pkg
-Pkg.add(url="https://github.com/waudbygroup/OptimalDesign.jl")
+Pkg.add(url="https://github.com/waudbylab/OptimalDesign.jl")
 ```
 
 ## Quick example
