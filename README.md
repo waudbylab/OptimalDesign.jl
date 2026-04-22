@@ -5,6 +5,8 @@
 [![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://waudbylab.github.io/OptimalDesign.jl/stable/)
 [![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://waudbylab.github.io/OptimalDesign.jl/dev/)
 
+![OptimalDesign logo](logo.png)
+
 **Adaptive and static Bayesian optimal experimental design for nonlinear models.**
 
 OptimalDesign.jl helps you decide *where* and *how many times* to measure in order to learn model parameters as efficiently as possible. It works with any nonlinear model you can write as a Julia function, handles prior uncertainty via particle-based Bayesian averaging, and supports both pre-planned batch designs and fully adaptive sequential experiments.
